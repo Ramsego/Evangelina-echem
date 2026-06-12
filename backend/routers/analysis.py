@@ -166,7 +166,10 @@ class CVResult(BaseModel):
     peaks:           list[PeakResult] | None
 
 class TafelFailResult(BaseModel):
-    success: bool = False
+    success:     bool = False
+    v_lo:        float | None = None
+    v_hi:        float | None = None
+    auto_window: bool = False
 
 class TafelOkResult(BaseModel):
     success:      bool = True
@@ -304,7 +307,11 @@ def analyze_tafel(request: Request, req: TafelRequest) -> TafelOkResult | TafelF
 
     res = tafel_analysis(df, req.area_cm2, v_lo, v_hi)
     if res is None:
-        return TafelFailResult()
+        return TafelFailResult(
+            v_lo=float(v_lo),
+            v_hi=float(v_hi),
+            auto_window=(req.v_lo is None and req.v_hi is None),
+        )
     return TafelOkResult(
         slope_mv_dec=res["slope_mv_dec"],
         slope_err_mv_dec=res["slope_err_mv_dec"],

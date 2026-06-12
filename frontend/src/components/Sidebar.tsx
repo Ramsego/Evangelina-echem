@@ -871,7 +871,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
       {/* ── Theme switcher (footer) ──────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-2.5 border-t border-sidebar-border flex items-center gap-2">
         <span className="text-[10px] text-sidebar-muted uppercase tracking-wider flex-1">Theme</span>
-        {(["forest", "dark", "light"] as UITheme[]).map(t => (
+        {(["forest", "dark", "light", "blade"] as UITheme[]).map(t => (
           <button
             key={t}
             title={t.charAt(0).toUpperCase() + t.slice(1)}
@@ -883,9 +883,9 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
                 : "opacity-50 hover:opacity-90 hover:scale-105"
             )}
             style={{
-              backgroundColor: t === "forest" ? "#1B4332" : t === "dark" ? "#0D1117" : "#F0F7F4",
+              backgroundColor: t === "forest" ? "#1B4332" : t === "dark" ? "#0D1117" : t === "blade" ? "#140d1d" : "#F0F7F4",
               border: "1.5px solid",
-              borderColor: t === "forest" ? "#2D6A4F" : t === "dark" ? "#30363D" : "#A8D5BA",
+              borderColor: t === "forest" ? "#2D6A4F" : t === "dark" ? "#30363D" : t === "blade" ? "#f59e0b" : "#A8D5BA",
             }}
           />
         ))}

@@ -432,10 +432,12 @@ export default function GCDPanel({ file }: Props) {
   });
 
   // ── Loading / error state for waveform views ──────────────────────────────────
-  const waveformLoading = (view === "profiles" && profileQ.isLoading)
-                       || (view === "dqdv"     && dqdvQ.isLoading);
-  const waveformError   = (view === "profiles" && profileQ.isError)
-                       || (view === "dqdv"     && dqdvQ.isError);
+  const waveformLoading = (view === "profiles"   && profileQ.isLoading)
+                       || (view === "dqdv"       && dqdvQ.isLoading)
+                       || (view === "cyclelife"  && gcdQ.isLoading);
+  const waveformError   = (view === "profiles"   && profileQ.isError)
+                       || (view === "dqdv"       && dqdvQ.isError)
+                       || (view === "cyclelife"  && gcdQ.isError);
 
   // ── Axes panel (shared across views) ─────────────────────────────────────────
   const axesPanel = axesOpen && (
@@ -605,7 +607,7 @@ export default function GCDPanel({ file }: Props) {
           Axes {axesOpen ? "▴" : "▾"}
         </button>
 
-        {view === "cyclelife" && (
+        {(view === "cyclelife" || view === "profiles") && (
           <Tooltip content="Show formulas and definitions" side="bottom" className="ml-auto">
             <button onClick={() => setShowInfo(true)}
                     className="text-[10px] text-panel-muted hover:text-panel-text border border-panel-border rounded-full w-4 h-4 flex items-center justify-center transition-colors shrink-0">?</button>
@@ -616,8 +618,20 @@ export default function GCDPanel({ file }: Props) {
       </div>
 
       {/* Status line */}
-      <div className="px-3 py-0.5 bg-forest-900/50 border-b border-forest-700/20 shrink-0 text-[10px] text-panel-muted">
-        {totalCycles} cycles · {view === "cyclelife" ? "cycle life" : view === "profiles" ? "profiles" : view === "dqdv" ? "dQ/dV" : "energy"}
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-0.5 bg-forest-900/50 border-b border-forest-700/20 shrink-0 text-[10px] text-panel-muted">
+        <span>{totalCycles} cycles · {view === "cyclelife" ? "cycle life" : view === "profiles" ? "profiles" : view === "dqdv" ? "dQ/dV" : "energy"}</span>
+        {view === "profiles" && esrResult && esrResult.esr != null && (
+          <>
+            <span className={chipCls} title="ΔV at current reversal">IR drop = {((esrResult.dV ?? 0) * 1000).toFixed(1)} mV</span>
+            <span className={chipCls} title="ESR = ΔV / |ΔI|">ESR = {esrResult.esr.toFixed(3)} Ω</span>
+          </>
+        )}
+        {view === "profiles" && esrResult?.warnings.map((w, i) => (
+          <span key={i} className={warnCls}>{w}</span>
+        ))}
+        {view === "dqdv" && showPeaks && dqdvPeaks && dqdvPeaks.peaks.length === 0 && (
+          <span className={chipCls}>no peaks above threshold</span>
+        )}
       </div>
 
       {showInfo && (
@@ -666,7 +680,7 @@ export default function GCDPanel({ file }: Props) {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertTriangle size={24} className="text-amber-400 shrink-0" />
             <p className="text-xs text-forest-400 max-w-xs leading-relaxed">
-              Waveform data is no longer available — the server may have restarted.
+              Analysis data is unavailable — the server may have restarted.
               Re-upload your <span className="text-forest-300 font-mono">.dta</span> file to restore this view.
             </p>
           </div>
@@ -675,6 +689,18 @@ export default function GCDPanel({ file }: Props) {
             <div className="h-3 bg-forest-700/40 rounded w-3/4" />
             <div className="flex-1 bg-forest-700/20 rounded" />
             <div className="h-3 bg-forest-700/40 rounded w-1/2" />
+          </div>
+        ) : view === "profiles" && profileQ.data && plotData.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-xs text-panel-muted">No data for selected cycles</p>
+          </div>
+        ) : view === "dqdv" && showPeaks && dqdvPeaks && dqdvPeaks.peaks.length === 0 ? (
+          <div className="absolute inset-0 flex flex-col">
+            <div className="absolute inset-0">
+              <Plot key={plotKey} data={styledData} layout={finalLayout} onRelayout={onRelayout as never}
+                    config={{ responsive: true, displayModeBar: "hover", displaylogo: false, scrollZoom: true, edits: { legendPosition: true } }}
+                    style={{ width: "100%", height: "100%" }} useResizeHandler />
+            </div>
           </div>
         ) : (
           <div className="absolute inset-0">

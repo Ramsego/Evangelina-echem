@@ -1,6 +1,6 @@
-# Gamry Dashboard
+# EChem Studio
 
-A local web dashboard for visualising and analysing Gamry Instruments electrochemical data (`.dta` files). Drag files in, get interactive plots with built-in analysis — no scripting required.
+A web dashboard for visualising and analysing Gamry Instruments electrochemical data (`.dta` files). Drag files in, get interactive plots with built-in analysis — no scripting required.
 
 ---
 
@@ -71,7 +71,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 | Layer | Technology |
 |---|---|
 | Frontend framework | React 18 + Vite + TypeScript |
-| Styling | Tailwind CSS (custom `forest` green palette) |
+| Styling | Tailwind CSS (custom `forest` scale + 4-theme system: Forest, Dark, Light, Blade) |
 | Charts | Plotly.js via react-plotly.js |
 | Data fetching | TanStack Query v5 |
 | Panel layout | react-grid-layout |
@@ -107,6 +107,5 @@ For the frontend, no env var is needed in production when the frontend and backe
 
 | File | Contents |
 |---|---|
-| `CLAUDE.md` | Instructions for the AI assistant (coding rules, color system, architecture constraints) |
 | `ARCHITECTURE.md` | Why the technology choices were made and how the system is designed |
-| `LEARNING.md` | Conceptual guide to the project for learning purposes |
+| `CLAUDE.md` | Instructions for the AI assistant (coding rules, color system, architecture constraints) |

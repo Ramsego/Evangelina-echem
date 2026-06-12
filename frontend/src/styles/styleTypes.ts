@@ -44,6 +44,7 @@ export const PALETTES: Record<string, string[]> = {
   "Warm":             ["#C0392B", "#E67E22", "#F39C12", "#D35400", "#922B21"],
   "Cool":             ["#1565C0", "#00838F", "#2E7D32", "#4527A0", "#0277BD"],
   "Pastel":           ["#5B9BD5", "#ED7D31", "#A9D18E", "#FFC000", "#9E70B4"],
+  "Blade":            ["#27d8ff", "#f59e0b", "#ff2f6d", "#c06bff", "#44ff92", "#ffd166", "#5eead4", "#fb7185"],
 };
 
 export const MARKER_SHAPES: Record<string, string> = {
@@ -134,6 +135,16 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     axisLineColor: "#555555", axisLineWidth: 1.2, tickDirection: "outside",
     plotBgColor: "#FAFAFA", showBorder: false,
     fontFamily: "Helvetica", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
+    showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+  },
+  "Blade": {
+    framework: "Blade", colorScheme: "Blade",
+    lineWidth: 2.0, lineDash: "solid", showMarkers: false, markerSize: 5, markerShape: "circle",
+    mirrorAxes: true, showXGrid: true, showYGrid: true,
+    gridColor: "#2a2040", gridLineStyle: "solid", gridLineWidth: 1.0,
+    axisLineColor: "#4a3a66", axisLineWidth: 1.2, tickDirection: "outside",
+    plotBgColor: "#0e0a15", showBorder: false,
+    fontFamily: "Inter", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
   },
 };

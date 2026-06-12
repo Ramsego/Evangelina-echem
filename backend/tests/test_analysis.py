@@ -106,6 +106,27 @@ def test_tafel_reports_n_points(client, tafel_curve):
         assert data["n_points"] >= 1
 
 
+def test_tafel_fail_returns_window():
+    """A 3-point curve cannot produce a fit; the failure response must include v_lo/v_hi."""
+    from fastapi.testclient import TestClient
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from main import app
+    with TestClient(app, raise_server_exceptions=False) as c:
+        tiny_curve = {"vf": [-0.1, 0.0, 0.1], "im": [1e-7, 1e-6, 1e-5]}
+        r = c.post("/api/analyze/tafel", json={
+            "curve": tiny_curve,
+            "area_cm2": 1.0,
+            "v_lo": -0.05,
+            "v_hi": 0.05,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is False
+        assert "v_lo" in data and data["v_lo"] is not None
+        assert "v_hi" in data and data["v_hi"] is not None
+
+
 # ── EIS ───────────────────────────────────────────────────────────────────────
 
 def test_eis_returns_expected_fields(client, eis_data):

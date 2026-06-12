@@ -554,11 +554,13 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
             </label>
             <label className="flex items-center gap-1" title="Tafel fit window — leave blank for auto-selection">
               Fit V
-              <input type="number" value={tafelVLoDraft} step={0.01} placeholder="auto"
+              <input type="number" value={tafelVLoDraft} step={0.01}
+                     placeholder={tafelVLoDraft === "" && tafelQ.data ? tafelQ.data.v_lo?.toFixed(3) ?? "auto" : "auto"}
                      onChange={e => setTafelVLo(e.target.value)}
                      className={`w-16 ${inputCls} ml-1`} />
               –
-              <input type="number" value={tafelVHiDraft} step={0.01} placeholder="auto"
+              <input type="number" value={tafelVHiDraft} step={0.01}
+                     placeholder={tafelVHiDraft === "" && tafelQ.data ? tafelQ.data.v_hi?.toFixed(3) ?? "auto" : "auto"}
                      onChange={e => setTafelVHi(e.target.value)}
                      className={`w-16 ${inputCls}`} />
             </label>
@@ -654,7 +656,25 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
               slope {tafel.slope_mv_dec.toFixed(1)} ± {tafel.slope_err_mv_dec.toFixed(1)} mV/dec
             </span>
             <span className={chipCls}>R² {tafel.r2.toFixed(4)}</span>
+            {tafel.auto_window && (
+              <span className={chipCls}>auto window {tafel.v_lo.toFixed(2)}–{tafel.v_hi.toFixed(2)} V</span>
+            )}
           </>
+        )}
+        {isLSV && tafel && !tafel.success && tafel.v_lo != null && tafel.v_hi != null && (
+          <span className="text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5">
+            Tafel fit failed — fewer than 5 valid points in window {tafel.v_lo.toFixed(3)}–{tafel.v_hi.toFixed(3)} V; adjust Fit V
+          </span>
+        )}
+        {isLSV && tafelQ.isError && (
+          <span className="text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5">
+            Tafel request failed
+          </span>
+        )}
+        {cvQ.isError && (
+          <span className="text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5">
+            peak/capacitance analysis failed
+          </span>
         )}
         {!isLSV && selectorMode && pending && (
           <span className="text-forest-500 animate-pulse">
@@ -738,6 +758,10 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
             <div className="h-3 bg-forest-700/40 rounded w-3/4" />
             <div className="flex-1 bg-forest-700/20 rounded" />
             <div className="h-3 bg-forest-700/40 rounded w-1/2" />
+          </div>
+        ) : curves.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-xs text-panel-muted">No curves in file</p>
           </div>
         ) : (
           <div className="absolute inset-0">

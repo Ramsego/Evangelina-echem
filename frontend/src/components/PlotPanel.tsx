@@ -17,7 +17,7 @@ import { computeExtents } from "../utils/plotUtils";
 import { useZoomClamp } from "../hooks/useZoomClamp";
 import { useFileLabels } from "../context/FileLabelContext";
 import { buildZip, exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments } from "../utils/exportUtils";
-import { computeCE } from "../utils/ceUtils";
+import { computeCE, computeSeesawEsr } from "../utils/ceUtils";
 import { useContainerSize } from "../hooks/useContainerSize";
 import Tooltip from "./Tooltip";
 
@@ -429,6 +429,12 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
     return computeCE(vqResult);
   }, [view, vqResult]);
 
+  // ESR from the V–Q charge→discharge boundary (frontend-only; current is user-entered)
+  const esrResult = useMemo(() => {
+    if (view !== "vq" || !vqResult || vqResult.length === 0) return null;
+    return computeSeesawEsr(vqResult, currentMA);
+  }, [view, vqResult, currentMA]);
+
   const plotData: Plotly.Data[] = useMemo(() => {
     if (!data) return [];
     if (view === "dqdv" && dqdvResult) {
@@ -501,6 +507,13 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
         );
       }
       warnings.push(...ceResult.warnings);
+      if (esrResult && esrResult.esr != null) {
+        values.push(
+          `  ESR: ${esrResult.esr.toFixed(4)} Ω  [ESR = ΔV / (2·I), I is user-entered]`,
+          `  ΔV (reversal): ${((esrResult.dV ?? 0) * 1000).toFixed(2)} mV`,
+        );
+        warnings.push(...esrResult.warnings);
+      }
     } else {
       values.push(`View: ${view === "dqdv" ? `dQ/dV, cycles ${start}–${end}, smoothing window ${smoothWindow}` : `V–t, cycles ${start}–${end}`}`);
     }
@@ -508,6 +521,9 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
       "Q (half-cycle capacity): Applied current × duration of the half-cycle, in mAh.",
       "  Half-cycles are segmented at voltage direction reversals.",
       "CE (coulombic efficiency): Q_discharge / Q_charge × 100 for the selected cycle.",
+      "ESR (SEESAW): ΔV at the charge→discharge voltage reversal divided by 2·I.",
+      "  ΔV is measured 2 points either side of the transition to skip transients.",
+      "  I is the user-entered current (mA); note this assumes a symmetric ±I step.",
     ];
     return buildSummaryTxt(
       file.name, "GCD cycles (SEESAW)", [
@@ -587,6 +603,19 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
           ))}
         </>
       )}
+      {view === "vq" && esrResult && esrResult.esr != null && (
+        <>
+          <span className="text-[10px] bg-panel-bg text-panel-text rounded px-2 py-0.5" title="ESR = ΔV / (2·I), ΔV at current reversal">
+            ESR = {esrResult.esr.toFixed(3)} Ω
+          </span>
+          <span className="text-[10px] bg-panel-bg text-panel-text rounded px-2 py-0.5" title="ΔV at current reversal">
+            ΔV = {((esrResult.dV ?? 0) * 1000).toFixed(1)} mV
+          </span>
+        </>
+      )}
+      {view === "vq" && esrResult?.warnings.map((w, i) => (
+        <span key={i} className="text-[10px] text-amber-600 bg-amber-400/20 border border-amber-400/50 rounded px-2 py-0.5">{w}</span>
+      ))}
       {(view === "dqdv" || view === "vq") && (
         <>
           <span className="text-panel-muted pl-2 border-l border-panel-border">I (mA)</span>
@@ -614,6 +643,10 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
         Cycle data is no longer available — the server may have restarted.
         Re-upload your <span className="text-forest-300 font-mono">.dta</span> file to restore this panel.
       </p>
+    </div>
+  ) : data && data.times.length === 0 ? (
+    <div className="flex-1 flex items-center justify-center">
+      <p className="text-xs text-panel-muted">No data for selected cycle range</p>
     </div>
   ) : (
     <div ref={plotRef} className="relative flex-1 min-h-0">

@@ -6,8 +6,7 @@ import { ParsedFile } from "../types";
 import { uploadFiles, fetchSample } from "../api/client";
 import { APP_NAME } from "../constants";
 import clsx from "clsx";
-
-const BADGES = ["CV & LSV", "EIS", "GCD", "Tafel & ESR", "Origin Export", "Publication Styles"];
+import CVRibbonHero from "./CVRibbonHero";
 
 interface Props {
   onFilesAdded: (files: ParsedFile[]) => void;
@@ -44,8 +43,16 @@ export default function LandingPage({ onFilesAdded }: Props) {
   return (
     <div className="min-h-screen bg-forest-900 flex flex-col items-center justify-center px-6 py-16"
          style={{
-           backgroundImage: "radial-gradient(ellipse at 50% 52%, rgba(45,106,79,0.55) 0%, rgba(27,67,50,0.30) 40%, transparent 70%)",
+           backgroundImage: [
+             "radial-gradient(ellipse at 20% 30%, var(--cvh-glow-a) 0%, transparent 55%)",
+             "radial-gradient(ellipse at 80% 70%, var(--cvh-glow-b) 0%, transparent 55%)",
+           ].join(", "),
          }}>
+
+      {/* CV ribbon hero */}
+      <div className="w-full max-w-3xl mb-10">
+        <CVRibbonHero />
+      </div>
 
       {/* Logo + name */}
       <div className="flex items-center gap-3 mb-4">
@@ -59,23 +66,6 @@ export default function LandingPage({ onFilesAdded }: Props) {
       <p className="text-forest-400 text-base mb-8 text-center max-w-md">
         Electrochemical data analysis — drag, arrange, and compare plots freely.
       </p>
-
-      {/* Feature badges */}
-      <div className="flex flex-wrap justify-center gap-2 mb-10">
-        {BADGES.map((b) => (
-          <span key={b}
-                className="px-3 py-1 rounded-full text-xs font-medium
-                           bg-forest-700/40 border border-forest-600/40 text-forest-300">
-            {b}
-          </span>
-        ))}
-      </div>
-
-      {/* Demo GIF */}
-      <div className="w-full max-w-3xl rounded-2xl overflow-hidden border border-forest-700/50 mb-10"
-           style={{ boxShadow: "0 0 80px rgba(64,145,108,0.20), 0 0 160px rgba(64,145,108,0.08)" }}>
-        <img src="/demo.gif" alt="App demo" className="w-full block" />
-      </div>
 
       {/* Primary CTA — try the app instantly with bundled sample data */}
       <button

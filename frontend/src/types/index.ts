@@ -124,7 +124,7 @@ export interface CVResponse {
 }
 
 export type TafelResponse =
-  | { success: false }
+  | { success: false; v_lo?: number; v_hi?: number; auto_window?: boolean }
   | { success: true; slope_mv_dec: number; slope_err_mv_dec: number; j0_mA_cm2: number; r2: number;
       fit_v: number[]; fit_log_j: number[];
       v_lo: number; v_hi: number; n_points: number; auto_window: boolean }

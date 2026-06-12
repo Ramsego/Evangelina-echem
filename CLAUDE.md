@@ -40,6 +40,8 @@ The entire UI uses a custom `forest` Tailwind scale. **Never introduce `slate-*`
 **Permitted exceptions:**
 - `amber-*` — SEESAW file badge only
 - `red-400` — remove (✕) button hover only
+- `[data-theme="blade"]` block in `index.css` — 4th theme (new default); cyan-on-dark-steel palette
+- `--cvh-*` CSS vars at `:root` in `index.css` — theme-independent hero colors for the landing page CV ribbon (`CVRibbonHero.tsx`)
 
 **Panel control strips and form controls** use theme-aware `panel-*` tokens, never `gray-*`:
 - Strip container: `bg-panel-header border-b border-panel-border text-xs text-panel-text`

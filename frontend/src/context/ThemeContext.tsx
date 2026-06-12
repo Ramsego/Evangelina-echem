@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-export type UITheme = "forest" | "dark" | "light";
+export type UITheme = "forest" | "dark" | "light" | "blade";
 
 interface ThemeCtx {
   theme:    UITheme;
@@ -11,7 +11,7 @@ const Ctx = createContext<ThemeCtx>({ theme: "forest", setTheme: () => {} });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<UITheme>(
-    () => (localStorage.getItem("app.theme") as UITheme | null) ?? "forest"
+    () => (localStorage.getItem("app.theme") as UITheme | null) ?? "blade"
   );
 
   function setTheme(t: UITheme) {

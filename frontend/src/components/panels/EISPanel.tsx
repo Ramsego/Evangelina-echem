@@ -15,6 +15,7 @@ import { useContainerSize } from "../../hooks/useContainerSize";
 import { computeExtents, axisOverride, LAYOUT_BASE as SHARED_LAYOUT_BASE } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import AxisInput from "../AxisInput";
+import { AlertTriangle } from "lucide-react";
 
 const COLORS = ["#74C69D","#D4A057","#60a5fa","#f472b6","#a78bfa","#fbbf24","#34d399","#f87171"];
 
@@ -516,7 +517,14 @@ export default function EISPanel({ file }: Props) {
 
       {/* Plot */}
       <div ref={plotRef} className="relative flex-1 min-h-0">
-        {eisQ.isLoading ? (
+        {eisQ.isError ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <AlertTriangle size={24} className="text-amber-400 shrink-0" />
+            <p className="text-xs text-forest-400 max-w-xs leading-relaxed">
+              Analysis failed — check the file or retry.
+            </p>
+          </div>
+        ) : eisQ.isLoading ? (
           <div className="absolute inset-0 flex flex-col gap-3 p-4 animate-pulse">
             <div className="h-3 bg-forest-700/40 rounded w-3/4" />
             <div className="flex-1 bg-forest-700/20 rounded" />

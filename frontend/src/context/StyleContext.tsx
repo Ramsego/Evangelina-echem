@@ -3,7 +3,7 @@ import { StyleSettings, DEFAULT_STYLE, FRAMEWORKS } from "../styles/styleTypes";
 import { useTheme } from "./ThemeContext";
 
 // Plot framework that matches each UI theme when the user hasn't pinned one explicitly.
-const THEME_FRAMEWORK = { forest: "Forest (Dark)", dark: "Forest (Dark)", light: "Default" } as const;
+const THEME_FRAMEWORK = { forest: "Forest (Dark)", dark: "Forest (Dark)", light: "Default", blade: "Blade" } as const;
 
 interface StyleCtx {
   globalStyle: StyleSettings;

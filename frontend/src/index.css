@@ -126,6 +126,82 @@
   --panel-hlbdr: #BBF7D0;
 }
 
+/* ── Blade theme (Blade Runner — warm violet-black / amber+cyan) ─────── */
+[data-theme="blade"] {
+  /* warm violet-black ramp */
+  --f950: 10 7 16;      /* #0a0710 deepest */
+  --f900: 14 11 20;     /* #0e0b14 app bg */
+  --f850: 17 13 24;     /* #110d18 plot bg */
+  --f800: 23 17 32;     /* #171120 panel cards */
+  --f750: 30 22 42;     /* #1e162a */
+  --f700: 50 38 70;     /* #322646 borders/grid — violet, not navy */
+  --f600: 180 83 9;     /* #b45309 active buttons — amber/copper */
+  --f500: 217 119 6;    /* #d97706 hover amber */
+  --f400: 39 216 255;   /* #27d8ff cyan — tick labels/icons */
+  --f300: 224 214 238;  /* #e0d6ee primary text — warm lavender-white */
+  --f200: 236 229 246;
+  --f100: 248 244 252;
+
+  --body-bg: #0e0b14;
+  --body-text: #f0e9f6;
+  --sidebar-bg: linear-gradient(180deg, #1a0f22 0%, #140d1d 50%, #0e0b14 100%);
+  --scrollbar-thumb: #3a2b50;
+
+  --sidebar-text:   #e6ddf0;
+  --sidebar-muted:  #9b8aae;
+  --sidebar-border: rgba(192, 107, 255, 0.10);
+  --sidebar-accent:        #f59e0b;
+  --sidebar-accent-border: rgba(245, 158, 11, 0.40);
+  --sidebar-accent-hover:  rgba(245, 158, 11, 0.12);
+
+  --panel-bg:    #120d1a;
+  --panel-bgalt: #0e0a15;
+  --chip-bg:     #1c1330;
+  --chip-text:   #27d8ff;
+  --panel-text:  #e3daf0;
+  --panel-muted: #9b8aae;
+  --panel-border: #322646;
+  --panel-header: #0c0813;
+  --panel-hl:    #221536;
+  --panel-hlbdr: #5b3a82;
+}
+
+/* ── CV ribbon hero vars (theme-independent) ─────────────────────────── */
+:root {
+  --cvh-pulse:  #ff2f6d;
+  --cvh-edge-a: #44ff92;
+  --cvh-edge-b: #27d8ff;
+  --cvh-edge-c: #c06bff;
+  --cvh-ghost:  rgba(192, 107, 255, 0.18);
+  --cvh-glass:  rgba(226, 255, 250, 0.62);
+  --cvh-glow-a: rgba(39, 216, 255, 0.125);
+  --cvh-glow-b: rgba(255, 47, 109, 0.052);
+}
+
+/* ── CV ribbon animations ────────────────────────────────────────────── */
+@keyframes drawCv {
+  from { stroke-dashoffset: 980; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes scanCv {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -980; }
+}
+
+.cv-draw {
+  animation: drawCv 3s cubic-bezier(0.2, 0.84, 0.16, 1) forwards;
+}
+
+.cv-pulse {
+  animation: scanCv 4.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-draw  { animation-duration: 0.001ms !important; }
+  .cv-pulse { animation: none !important; }
+}
+
 body {
   margin: 0;
   background-color: var(--body-bg);
