@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/sebastiangonzalezramirez/Desktop/gamry-dashboard/frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": [
+        "main:app",
+        "--app-dir",
+        "/Users/sebastiangonzalezramirez/Desktop/gamry-dashboard/backend",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    }
+  ]
+}

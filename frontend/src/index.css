@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+/* ── Forest theme (default) ─────────────────────────────────────────── */
+:root,
+[data-theme="forest"] {
+  /* Shell palette — RGB triplets for Tailwind alpha support */
+  --f950: 5 14 8;
+  --f900: 11 22 16;
+  --f850: 13 28 20;
+  --f800: 17 30 22;
+  --f750: 22 43 29;
+  --f700: 27 67 50;
+  --f600: 45 106 79;
+  --f500: 64 145 108;
+  --f400: 82 183 136;
+  --f300: 116 198 157;
+  --f200: 168 213 186;
+  --f100: 209 250 229;
+
+  --body-bg: #0B1610;
+  --body-text: #D1FAE5;
+  --sidebar-bg: linear-gradient(180deg, #52B788 0%, #74929E 12%, #94A3B8 26%, #AEBDCC 45%, #C4D1DC 65%, #D8E4EC 85%, #E8EFF5 100%);
+  --scrollbar-thumb: #334155;
+
+  --sidebar-text:   #1F2937;
+  --sidebar-muted:  #6B7280;
+  --sidebar-border: rgba(0, 0, 0, 0.1);
+
+  --panel-bg:    #111E16;
+  --panel-bgalt: #0D1C14;
+  --panel-text:  #A8D5BA;
+  --panel-muted: #74C69D;
+  --panel-border: #1B4332;
+  --panel-header: #0B1610;
+  --panel-hl:    #122c20;
+  --panel-hlbdr: #2D6A4F;
+}
+
+/* ── Dark theme ("forest at night") ────────────────────────────────── */
+[data-theme="dark"] {
+  /* Deep navy backgrounds — only f950–f750 change; greens preserved for accents */
+  --f950: 8 9 11;
+  --f900: 13 17 23;
+  --f850: 17 21 29;
+  --f800: 22 27 38;
+  --f750: 30 35 50;
+  --f700: 27 67 50;
+  --f600: 45 106 79;
+  --f500: 64 145 108;
+  --f400: 82 183 136;
+  --f300: 116 198 157;
+  --f200: 168 213 186;
+  --f100: 209 250 229;
+
+  --body-bg: #0D1117;
+  --body-text: #E6EDF3;
+  --sidebar-bg: linear-gradient(180deg, #1B2432 0%, #141B27 35%, #0D1117 100%);
+  --scrollbar-thumb: #30363D;
+
+  --sidebar-text:   #E6EDF3;
+  --sidebar-muted:  #8B949E;
+  --sidebar-border: rgba(240, 246, 252, 0.1);
+
+  --panel-bg:    #0D1117;
+  --panel-bgalt: #161B26;
+  --panel-text:  #E6EDF3;
+  --panel-muted: #8B949E;
+  --panel-border: #30363D;
+  --panel-header: #161B26;
+  --panel-hl:    #122c20;
+  --panel-hlbdr: #2D6A4F;
+}
+
+/* ── Light theme ────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  /* Shell uses light grays; greens (f700–f100) stay for accents */
+  --f950: 248 250 252;
+  --f900: 241 245 249;
+  --f850: 232 240 248;
+  --f800: 226 232 240;
+  --f750: 214 223 233;
+  --f700: 27 67 50;
+  --f600: 45 106 79;
+  --f500: 64 145 108;
+  --f400: 82 183 136;
+  --f300: 116 198 157;
+  --f200: 168 213 186;
+  --f100: 209 250 229;
+
+  --body-bg: #F1F5F9;
+  --body-text: #1E293B;
+  --sidebar-bg: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 40%, #F0F4F8 100%);
+  --scrollbar-thumb: #94A3B8;
+
+  --sidebar-text:   #1F2937;
+  --sidebar-muted:  #6B7280;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+
+  --panel-bg:    #ffffff;
+  --panel-bgalt: #F9FAFB;
+  --panel-text:  #1F2937;
+  --panel-muted: #6B7280;
+  --panel-border: #E5E7EB;
+  --panel-header: #F3F4F6;
+  --panel-hl:    #F0FDF4;
+  --panel-hlbdr: #BBF7D0;
+}
+
+body {
+  margin: 0;
+  background-color: var(--body-bg);
+  color: var(--body-text);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgb(var(--f600));
+  opacity: 0.18;
+  border-radius: 12px;
+  border: 2px dashed rgb(var(--f500));
+}
+
+.react-resizable-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgb(var(--f300));
+  border-bottom: 2px solid rgb(var(--f300));
+  border-radius: 1px;
+}
+
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 0.8;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb); filter: brightness(1.2); }

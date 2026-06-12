@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-multipart
+slowapi
+gamry-parser
+scipy
+openpyxl
+numpy
+pandas
+pytest
+httpx
+pytest-asyncio
