@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 
 from fastapi import FastAPI, Request
@@ -9,18 +8,17 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from config import ALLOWED_ORIGINS, IS_DEV
 from limiter import limiter
 from routers import analysis, export, files
 
 logger = logging.getLogger(__name__)
 
-# Disable interactive API docs outside local development.
-_dev = os.getenv("ENV", "production").lower() == "development"
-
 app = FastAPI(
     title="EChem Studio API",
-    docs_url="/docs"  if _dev else None,
-    redoc_url="/redoc" if _dev else None,
+    # Disable interactive API docs outside local development.
+    docs_url="/docs"  if IS_DEV else None,
+    redoc_url="/redoc" if IS_DEV else None,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -40,10 +38,7 @@ app.add_middleware(RequestIdMiddleware)
 
 # CORS: set ALLOWED_ORIGINS env var to a comma-separated list for production.
 # Falls back to any localhost port when running locally (Vite may auto-assign).
-_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
-
-if not allowed_origins:
+if not ALLOWED_ORIGINS:
     import warnings
     warnings.warn(
         "ALLOWED_ORIGINS not set — CORS falling back to localhost only. Set this env var in production.",
@@ -52,8 +47,8 @@ if not allowed_origins:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    **({} if allowed_origins else {"allow_origin_regex": r"http://localhost:\d+"}),
+    allow_origins=ALLOWED_ORIGINS,
+    **({} if ALLOWED_ORIGINS else {"allow_origin_regex": r"http://localhost:\d+"}),
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )

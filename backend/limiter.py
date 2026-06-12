@@ -1,7 +1,7 @@
-import os
-
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from config import TRUST_PROXY
 
 
 def _get_ip(request):
@@ -10,7 +10,7 @@ def _get_ip(request):
     # Set TRUST_PROXY=true in production to read the real client IP from
     # X-Forwarded-For instead. Only enable this when the proxy is controlled by
     # you; a public-facing app without a proxy should leave it unset.
-    if os.getenv("TRUST_PROXY", "").lower() == "true":
+    if TRUST_PROXY:
         forwarded = request.headers.get("X-Forwarded-For", "")
         ip = forwarded.split(",")[0].strip()
         if ip:

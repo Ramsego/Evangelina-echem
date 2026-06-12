@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import re
 import tempfile
 import time
@@ -28,13 +27,15 @@ from gamry_plotter.demo import generate_sample_data
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ── Upload limits (overridable via env vars) ───────────────────────────────────
-_MAX_FILES       = int(os.getenv("MAX_FILES",    "100"))
-_MAX_FILE_MB     = int(os.getenv("MAX_FILE_MB",  "20"))
-_MAX_TOTAL_MB    = int(os.getenv("MAX_TOTAL_MB", "100"))
-UPLOADS_ENABLED  = os.getenv("UPLOADS_ENABLED", "true").lower() != "false"
-_CACHE_TTL_S     = int(os.getenv("CACHE_TTL_S", "3600"))  # 1 h default
-_MAX_RANGE       = int(os.getenv("MAX_RANGE",   "500"))   # max curves/cycles per fetch
+# ── Upload limits (configured in config.py via env vars) ───────────────────────
+from config import (
+    MAX_FILES       as _MAX_FILES,
+    MAX_FILE_MB     as _MAX_FILE_MB,
+    MAX_TOTAL_MB    as _MAX_TOTAL_MB,
+    UPLOADS_ENABLED,
+    CACHE_TTL_S     as _CACHE_TTL_S,
+    MAX_RANGE       as _MAX_RANGE,
+)
 
 
 def _safe_filename(name: str) -> str:
