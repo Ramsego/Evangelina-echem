@@ -30,7 +30,7 @@ const LAYOUT_BASE: Partial<Plotly.Layout> = {
 
 type GCDView = "cyclelife" | "profiles" | "dqdv" | "energy";
 
-const inputCls = "bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900";
+const inputCls = "bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400";
 const chipCls  = "text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5";
 const warnCls  = "text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5";
 
@@ -439,32 +439,32 @@ export default function GCDPanel({ file }: Props) {
 
   // ── Axes panel (shared across views) ─────────────────────────────────────────
   const axesPanel = axesOpen && (
-    <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-gray-200">
-      <span className="font-semibold text-gray-600">X</span>
+    <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-panel-border">
+      <span className="font-semibold text-panel-muted">X</span>
       <AxisInput value={xMin} onChange={setXMin} placeholder="min" className={`w-16 ${inputCls}`} />
-      <span className="text-gray-400">–</span>
+      <span className="text-panel-muted">–</span>
       <AxisInput value={xMax} onChange={setXMax} placeholder="max" className={`w-16 ${inputCls}`} />
-      <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+      <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
         <input type="checkbox" checked={xLog} onChange={e => setXLog(e.target.checked)} className="accent-forest-400" /> log
       </label>
-      <span className="text-gray-300 px-1">│</span>
-      <span className="font-semibold text-gray-600">Y</span>
+      <span className="text-panel-muted px-1">│</span>
+      <span className="font-semibold text-panel-muted">Y</span>
       <AxisInput value={yMin} onChange={setYMin} placeholder="min" className={`w-16 ${inputCls}`} />
-      <span className="text-gray-400">–</span>
+      <span className="text-panel-muted">–</span>
       <AxisInput value={yMax} onChange={setYMax} placeholder="max" className={`w-16 ${inputCls}`} />
-      <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+      <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
         <input type="checkbox" checked={yLog} onChange={e => setYLog(e.target.checked)} className="accent-forest-400" /> log
       </label>
       {view === "cyclelife" && <>
-        <span className="text-gray-300 px-1">│</span>
-        <span className="font-semibold text-gray-600">Y2</span>
+        <span className="text-panel-muted px-1">│</span>
+        <span className="font-semibold text-panel-muted">Y2</span>
         <AxisInput value={y2Min} onChange={setY2Min} placeholder="0"   className={`w-16 ${inputCls}`} />
-        <span className="text-gray-400">–</span>
+        <span className="text-panel-muted">–</span>
         <AxisInput value={y2Max} onChange={setY2Max} placeholder="110" className={`w-16 ${inputCls}`} />
       </>}
       {(xMin || xMax || yMin || yMax || y2Min || y2Max) && (
         <button onClick={() => { setXMin(""); setXMax(""); setYMin(""); setYMax(""); setY2Min(""); setY2Max(""); }}
-                className="text-[10px] text-gray-400 hover:text-red-500 border border-gray-300 rounded px-1.5 py-0.5 transition-colors">
+                className="text-[10px] text-panel-muted hover:text-red-500 border border-panel-border rounded px-1.5 py-0.5 transition-colors">
           Reset
         </button>
       )}
@@ -479,15 +479,15 @@ export default function GCDPanel({ file }: Props) {
           Lock view
         </button>
       )}
-      <div className="w-full flex items-center gap-2 pt-1 border-t border-gray-100">
-        <span className="text-[10px] font-semibold text-gray-500 shrink-0">X label</span>
+      <div className="w-full flex items-center gap-2 pt-1 border-t border-panel-border">
+        <span className="text-[10px] font-semibold text-panel-muted shrink-0">X label</span>
         <input type="text" value={xTitleOverride} onChange={e => setXTitleOverride(e.target.value)}
                className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
-        <span className="text-[10px] font-semibold text-gray-500 shrink-0">Y label</span>
+        <span className="text-[10px] font-semibold text-panel-muted shrink-0">Y label</span>
         <input type="text" value={yTitleOverride} onChange={e => setYTitleOverride(e.target.value)}
                className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
         {view === "cyclelife" && <>
-          <span className="text-[10px] font-semibold text-gray-500 shrink-0">Y2 label</span>
+          <span className="text-[10px] font-semibold text-panel-muted shrink-0">Y2 label</span>
           <input type="text" value={y2TitleOverride} onChange={e => setY2TitleOverride(e.target.value)}
                  className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
         </>}
@@ -498,16 +498,16 @@ export default function GCDPanel({ file }: Props) {
   return (
     <div className="h-full flex flex-col">
       {/* Controls bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-gray-100 border-b border-gray-300 text-xs text-gray-900 shrink-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-panel-header border-b border-panel-border text-xs text-panel-text shrink-0">
 
         {/* View toggle */}
-        <div className="flex rounded overflow-hidden border border-gray-300">
+        <div className="flex rounded overflow-hidden border border-panel-border">
           {(["cyclelife", "profiles", "dqdv", "energy"] as GCDView[]).map(v => {
             const label = v === "cyclelife" ? "Cycle Life" : v === "profiles" ? "Profiles" : v === "dqdv" ? "dQ/dV" : "Energy";
             const disabled = (v !== "cyclelife") && !hasRaw && !(v === "energy" && gcd.dis_energy_mwh);
             return (
               <button key={v} onClick={() => !disabled && setView(v)} disabled={disabled}
-                className={`px-2 py-0.5 text-[10px] transition-colors ${view === v ? "bg-forest-600 text-white" : disabled ? "text-gray-300 cursor-default" : "text-gray-700 hover:bg-gray-200"}`}
+                className={`px-2 py-0.5 text-[10px] transition-colors ${view === v ? "bg-forest-600 text-white" : disabled ? "text-panel-muted cursor-default" : "text-panel-text hover:bg-panel-bg"}`}
                 title={disabled ? "Re-upload file to enable" : undefined}>
                 {label}
               </button>
@@ -518,15 +518,15 @@ export default function GCDPanel({ file }: Props) {
         {/* View-specific controls */}
         {view === "profiles" && hasRaw && (
           <>
-            <span className="text-gray-500 text-[10px]">Cycles</span>
+            <span className="text-panel-muted text-[10px]">Cycles</span>
             <input type="number" value={loDraft} min={1} max={hiDraft}
                    onChange={e => setLo(Number(e.target.value))}
                    className={`w-12 ${inputCls}`} />
-            <span className="text-gray-400">–</span>
+            <span className="text-panel-muted">–</span>
             <input type="number" value={hiDraft} min={loDraft} max={totalCycles}
                    onChange={e => setHi(Math.min(Number(e.target.value), loDraft + 4))}
                    className={`w-12 ${inputCls}`} />
-            <span className="text-gray-400 text-[9px]">of {totalCycles} (max 5)</span>
+            <span className="text-panel-muted text-[9px]">of {totalCycles} (max 5)</span>
             <label className="flex items-center gap-1 cursor-pointer">
               <input type="checkbox" checked={showDischarge} onChange={e => setShowDischarge(e.target.checked)} className="accent-forest-400" />
               <span className="text-[10px]">Discharge</span>
@@ -540,26 +540,26 @@ export default function GCDPanel({ file }: Props) {
 
         {view === "dqdv" && hasRaw && (
           <>
-            <span className="text-gray-500 text-[10px]">Cycle</span>
+            <span className="text-panel-muted text-[10px]">Cycle</span>
             <input type="number" value={dqdvCycleDraft} min={1} max={totalCycles}
                    onChange={e => setDqdvCycleDraft(Number(e.target.value))}
                    className={`w-14 ${inputCls}`} />
-            <div className="flex rounded overflow-hidden border border-gray-300">
+            <div className="flex rounded overflow-hidden border border-panel-border">
               {(["discharge", "charge"] as const).map(s => (
                 <button key={s} onClick={() => setDqdvStep(s)}
-                  className={`px-2 py-0.5 text-[10px] transition-colors capitalize ${dqdvStep === s ? "bg-forest-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}>
+                  className={`px-2 py-0.5 text-[10px] transition-colors capitalize ${dqdvStep === s ? "bg-forest-600 text-white" : "text-panel-muted hover:bg-panel-bg"}`}>
                   {s}
                 </button>
               ))}
             </div>
             <label className="flex items-center gap-1">
               <Tooltip content="Smoothing window — points averaged to reduce noise" side="bottom">
-                <span className="text-[10px] text-gray-500">Smooth</span>
+                <span className="text-[10px] text-panel-muted">Smooth</span>
               </Tooltip>
               <input type="range" min={1} max={50} value={smoothWindow}
                      onChange={e => setSmoothWindow(Number(e.target.value))}
                      className="w-20 accent-forest-400" />
-              <span className="text-[10px] text-gray-500 w-5">{smoothWindow}</span>
+              <span className="text-[10px] text-panel-muted w-5">{smoothWindow}</span>
             </label>
             <label className="flex items-center gap-1 cursor-pointer">
               <input type="checkbox" checked={showPeaks} onChange={e => setShowPeaks(e.target.checked)} className="accent-forest-400" />
@@ -568,12 +568,12 @@ export default function GCDPanel({ file }: Props) {
             {showPeaks && (
               <label className="flex items-center gap-1">
                 <Tooltip content="Peak threshold as % of max |dQ/dV| — higher hides small peaks" side="bottom">
-                  <span className="text-[10px] text-gray-500">Thr</span>
+                  <span className="text-[10px] text-panel-muted">Thr</span>
                 </Tooltip>
                 <input type="number" value={peakThr} min={1} max={90}
                        onChange={e => setPeakThr(Number(e.target.value))}
                        className={`w-12 ${inputCls}`} />
-                <span className="text-[10px] text-gray-500">%</span>
+                <span className="text-[10px] text-panel-muted">%</span>
               </label>
             )}
           </>
@@ -593,22 +593,22 @@ export default function GCDPanel({ file }: Props) {
         )}
 
         {/* Zoom/Pan */}
-        <div className="flex rounded overflow-hidden border border-gray-300 shrink-0">
+        <div className="flex rounded overflow-hidden border border-panel-border shrink-0">
           <button onClick={() => setDragmode('zoom')}
-            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>Zoom</button>
+            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>Zoom</button>
           <button onClick={() => setDragmode('pan')}
-            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>Pan</button>
+            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>Pan</button>
         </div>
 
         <button onClick={() => setAxesOpen(o => !o)}
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-50 border-forest-400 text-forest-700" : "border-gray-300 text-gray-500 hover:text-gray-700"}`}>
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-600 border-forest-600 text-white" : "border-panel-border text-panel-muted hover:text-panel-text"}`}>
           Axes {axesOpen ? "▴" : "▾"}
         </button>
 
         {view === "cyclelife" && (
-          <Tooltip content="Show formulas and definitions" side="bottom">
+          <Tooltip content="Show formulas and definitions" side="bottom" className="ml-auto">
             <button onClick={() => setShowInfo(true)}
-                    className="text-[10px] text-gray-500 hover:text-gray-700 border border-gray-300 rounded-full w-4 h-4 flex items-center justify-center transition-colors shrink-0">?</button>
+                    className="text-[10px] text-panel-muted hover:text-panel-text border border-panel-border rounded-full w-4 h-4 flex items-center justify-center transition-colors shrink-0">?</button>
           </Tooltip>
         )}
 

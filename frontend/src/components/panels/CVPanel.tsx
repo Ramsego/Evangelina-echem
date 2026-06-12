@@ -20,7 +20,7 @@ import Tooltip from "../Tooltip";
 
 const COLORS = ["#74C69D","#D4A057","#60a5fa","#f472b6","#a78bfa","#fbbf24","#34d399","#f87171"];
 
-const inputCls = "bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900";
+const inputCls = "bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400";
 const warnCls  = "text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5";
 const chipCls  = "text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5";
 
@@ -461,7 +461,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   return (
     <div className="h-full flex flex-col" onClick={onFocus}>
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-gray-100 border-b border-gray-300 text-xs text-gray-900 shrink-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-panel-header border-b border-panel-border text-xs text-panel-text shrink-0">
         {!isLSV && (
           <>
             <label className="flex items-center gap-1">
@@ -475,9 +475,9 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
                      className={`w-10 ${inputCls}`} />
             </label>
             {detectedRate != null ? (
-              <span className="flex items-center gap-1 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1 text-[10px] text-panel-muted">
                 Scan rate
-                <span className="ml-1 px-1.5 py-0.5 bg-gray-200 rounded text-gray-700">{detectedRate} mV/s</span>
+                <span className="ml-1 px-1.5 py-0.5 bg-panel-bg rounded text-panel-text">{detectedRate} mV/s</span>
               </span>
             ) : (
               <label className="flex items-center gap-1">
@@ -510,24 +510,24 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
 
         {/* Reference electrode conversion */}
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-[10px] text-gray-500 shrink-0">Ref</span>
+          <span className="text-[10px] text-panel-muted shrink-0">Ref</span>
           <select value={refFrom} onChange={e => setRefFrom(e.target.value)} className={`${inputCls} text-[10px]`}>
             {ELECTRODE_OPTIONS.map(k => <option key={k}>{k}</option>)}
           </select>
-          <span className="text-gray-400 shrink-0">→</span>
+          <span className="text-panel-muted shrink-0">→</span>
           <select value={refTo} onChange={e => setRefTo(e.target.value)} className={`${inputCls} text-[10px]`}>
             {ELECTRODE_OPTIONS.map(k => <option key={k}>{k}</option>)}
           </select>
           {(refFrom === "RHE" || refTo === "RHE") && (
             <label className="flex items-center gap-1">
-              <span className="text-[10px] text-gray-500">pH</span>
+              <span className="text-[10px] text-panel-muted">pH</span>
               <input type="number" value={pH} min={0} max={14} step={0.5}
                      onChange={e => setPH(Number(e.target.value))}
                      className={`w-10 ${inputCls}`} />
             </label>
           )}
           {vOffset !== 0 && (
-            <span className="text-[9px] text-gray-400 shrink-0">
+            <span className="text-[9px] text-panel-muted shrink-0">
               ({vOffset > 0 ? "+" : ""}{vOffset.toFixed(3)} V)
             </span>
           )}
@@ -566,13 +566,13 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
         )}
 
 
-        <div className="flex rounded overflow-hidden border border-gray-300 shrink-0">
+        <div className="flex rounded overflow-hidden border border-panel-border shrink-0">
           <button onClick={() => setDragmode('zoom')} title="Box zoom"
-            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>
             Zoom
           </button>
           <button onClick={() => setDragmode('pan')} title="Drag to pan"
-            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>
             Pan
           </button>
         </div>
@@ -581,44 +581,44 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
           <button
             onClick={() => { setSelectorMode(m => !m); setPending(null); }}
             title="Assign redox pairs by clicking peak markers"
-            className={`px-2 py-0.5 text-[10px] rounded border transition-colors shrink-0 ${selectorMode ? "bg-forest-600 text-white border-forest-500" : "border-gray-300 text-gray-500 hover:text-gray-700"}`}>
+            className={`px-2 py-0.5 text-[10px] rounded border transition-colors shrink-0 ${selectorMode ? "bg-forest-600 text-white border-forest-500" : "border-panel-border text-panel-muted hover:text-panel-text"}`}>
             Pairs ✎
           </button>
         )}
 
         <button onClick={() => setAxesOpen(o => !o)}
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-50 border-forest-400 text-forest-700" : "border-gray-300 text-gray-500 hover:text-gray-700"}`}>
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-600 border-forest-600 text-white" : "border-panel-border text-panel-muted hover:text-panel-text"}`}>
           Axes {axesOpen ? "▴" : "▾"}
         </button>
 
-        <Tooltip content="Show formulas and definitions" side="bottom">
+        <Tooltip content="Show formulas and definitions" side="bottom" className="ml-auto">
           <button onClick={() => setShowInfo(true)}
-                  className="text-[10px] text-gray-500 hover:text-gray-700 border border-gray-300 rounded-full w-4 h-4 flex items-center justify-center transition-colors shrink-0">
+                  className="text-[10px] text-panel-muted hover:text-panel-text border border-panel-border rounded-full w-4 h-4 flex items-center justify-center transition-colors shrink-0">
             ?
           </button>
         </Tooltip>
 
         {/* Axes inputs */}
         {axesOpen && (
-          <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-gray-200">
-            <span className="font-semibold text-gray-600">X</span>
+          <div className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-panel-border">
+            <span className="font-semibold text-panel-muted">X</span>
             <AxisInput value={xMin} onChange={setXMin} placeholder="min" className={`w-16 ${inputCls}`} />
-            <span className="text-gray-400">–</span>
+            <span className="text-panel-muted">–</span>
             <AxisInput value={xMax} onChange={setXMax} placeholder="max" className={`w-16 ${inputCls}`} />
-            <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+            <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
               <input type="checkbox" checked={xLog} onChange={e => setXLog(e.target.checked)} className="accent-forest-400" /> log
             </label>
-            <span className="text-gray-300 px-1">│</span>
-            <span className="font-semibold text-gray-600">Y</span>
+            <span className="text-panel-muted px-1">│</span>
+            <span className="font-semibold text-panel-muted">Y</span>
             <AxisInput value={yMin} onChange={setYMin} placeholder="min" className={`w-16 ${inputCls}`} />
-            <span className="text-gray-400">–</span>
+            <span className="text-panel-muted">–</span>
             <AxisInput value={yMax} onChange={setYMax} placeholder="max" className={`w-16 ${inputCls}`} />
-            <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+            <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
               <input type="checkbox" checked={yLog} onChange={e => setYLog(e.target.checked)} className="accent-forest-400" /> log
             </label>
             {(xMin || xMax || yMin || yMax) && (
               <button onClick={() => { setXMin(""); setXMax(""); setYMin(""); setYMax(""); }}
-                      className="text-[10px] text-gray-400 hover:text-red-500 border border-gray-300 rounded px-1.5 py-0.5 transition-colors">
+                      className="text-[10px] text-panel-muted hover:text-red-500 border border-panel-border rounded px-1.5 py-0.5 transition-colors">
                 Reset
               </button>
             )}
@@ -633,11 +633,11 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
                 Lock view
               </button>
             )}
-            <div className="w-full flex items-center gap-2 pt-1 border-t border-gray-100">
-              <span className="text-[10px] font-semibold text-gray-500 shrink-0">X label</span>
+            <div className="w-full flex items-center gap-2 pt-1 border-t border-panel-border">
+              <span className="text-[10px] font-semibold text-panel-muted shrink-0">X label</span>
               <input type="text" placeholder={xLabel} value={xTitleOverride} onChange={e => setXTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
-              <span className="text-[10px] font-semibold text-gray-500 shrink-0">Y label</span>
+              <span className="text-[10px] font-semibold text-panel-muted shrink-0">Y label</span>
               <input type="text" placeholder={isLSV ? "log₁₀ |j| (mA/cm²)" : yLabel} value={yTitleOverride} onChange={e => setYTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
             </div>

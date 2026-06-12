@@ -38,9 +38,15 @@ The entire UI uses a custom `forest` Tailwind scale. **Never introduce `slate-*`
 | forest-200  | #A8D5BA   | Legend text                       |
 
 **Permitted exceptions:**
-- `bg-gray-100 / text-gray-900` — controls bar only (light bg, black text)
 - `amber-*` — SEESAW file badge only
 - `red-400` — remove (✕) button hover only
+
+**Panel control strips and form controls** use theme-aware `panel-*` tokens, never `gray-*`:
+- Strip container: `bg-panel-header border-b border-panel-border text-xs text-panel-text`
+- Inputs/selects: `bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400`
+- Active toggle button (Zoom/Pan/Axes): `bg-forest-600 border-forest-600 text-white`; inactive: `text-panel-muted hover:text-panel-text`
+
+These tokens resolve per theme (forest/dark/light) via CSS variables in `frontend/src/index.css`, so controls stay legible in every theme. Do not reintroduce `bg-gray-100`/`text-gray-900` controls bars.
 
 Plotly figures use hardcoded hex values from this palette — that is intentional and correct.
 

@@ -533,51 +533,51 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
   });
 
   const controls = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-gray-100 border-b border-gray-300 text-xs text-gray-900 shrink-0">
-      <div className="flex rounded overflow-hidden border border-gray-300">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 bg-panel-header border-b border-panel-border text-xs text-panel-text shrink-0">
+      <div className="flex rounded overflow-hidden border border-panel-border">
         <button onClick={() => setView("voltage")}
-          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "voltage" ? "bg-forest-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}>
+          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "voltage" ? "bg-forest-600 text-white" : "text-panel-muted hover:bg-panel-bg"}`}>
           V–t
         </button>
         <button onClick={() => setView("vq")}
-          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "vq" ? "bg-forest-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}>
+          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "vq" ? "bg-forest-600 text-white" : "text-panel-muted hover:bg-panel-bg"}`}>
           V–Q
         </button>
         <button onClick={() => setView("dqdv")}
-          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "dqdv" ? "bg-forest-600 text-white" : "text-gray-600 hover:bg-gray-200"}`}>
+          className={`px-2 py-0.5 text-[10px] transition-colors ${view === "dqdv" ? "bg-forest-600 text-white" : "text-panel-muted hover:bg-panel-bg"}`}>
           dQ/dV
         </button>
       </div>
       {view === "vq" ? (
         <>
-          <span className="text-gray-500">Cycle</span>
+          <span className="text-panel-muted">Cycle</span>
           <input type="number" value={vqCycle} min={min} max={max}
                  onChange={e => setVqCycle(Number(e.target.value))}
-                 className="w-14 bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900" />
-          <span className="text-gray-400">of {max}</span>
+                 className="w-14 bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400" />
+          <span className="text-panel-muted">of {max}</span>
         </>
       ) : (
         <>
-          <span className="text-gray-500">Cycles</span>
+          <span className="text-panel-muted">Cycles</span>
           <input type="number" value={start} min={min} max={end - 1}
                  onChange={e => setStart(Number(e.target.value))}
-                 className="w-14 bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900" />
-          <span className="text-gray-400">–</span>
+                 className="w-14 bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400" />
+          <span className="text-panel-muted">–</span>
           <input type="number" value={end} min={start + 1} max={max}
                  onChange={e => setEnd(Number(e.target.value))}
-                 className="w-14 bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900" />
-          <span className="text-gray-400">of {max}</span>
+                 className="w-14 bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400" />
+          <span className="text-panel-muted">of {max}</span>
         </>
       )}
-      {isLoading && <span className="text-[10px] text-gray-400 animate-pulse">loading…</span>}
+      {isLoading && <span className="text-[10px] text-panel-muted animate-pulse">loading…</span>}
       {view === "vq" && ceResult && (
         <>
           {ceResult.ce != null && (
             <>
-              <span className="text-[10px] bg-gray-200 text-gray-700 rounded px-2 py-0.5" title="Q = I × Δt per half-cycle">
+              <span className="text-[10px] bg-panel-bg text-panel-text rounded px-2 py-0.5" title="Q = I × Δt per half-cycle">
                 Q_ch = {ceResult.qCh!.toFixed(3)} mAh · Q_dis = {ceResult.qDis!.toFixed(3)} mAh
               </span>
-              <span className="text-[10px] bg-gray-200 text-gray-700 rounded px-2 py-0.5" title="CE = Q_dis / Q_ch × 100">
+              <span className="text-[10px] bg-panel-bg text-panel-text rounded px-2 py-0.5" title="CE = Q_dis / Q_ch × 100">
                 CE = {ceResult.ce.toFixed(1)}%
               </span>
             </>
@@ -589,17 +589,17 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
       )}
       {(view === "dqdv" || view === "vq") && (
         <>
-          <span className="text-gray-500 pl-2 border-l border-gray-300">I (mA)</span>
+          <span className="text-panel-muted pl-2 border-l border-panel-border">I (mA)</span>
           <input type="number" value={currentMA} min={0.001} step={0.1}
                  onChange={e => setCurrentMA(Number(e.target.value))}
-                 className="w-16 bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900" />
+                 className="w-16 bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400" />
           {view === "dqdv" && (
             <>
-              <span className="text-gray-500">Smooth</span>
+              <span className="text-panel-muted">Smooth</span>
               <input type="range" min={1} max={50} value={smoothWindow}
                      onChange={e => setSmoothWindow(Number(e.target.value))}
                      className="w-20 accent-forest-400" />
-              <span className="text-gray-400 w-6">{smoothWindow}</span>
+              <span className="text-panel-muted w-6">{smoothWindow}</span>
             </>
           )}
         </>

@@ -14,7 +14,7 @@ import { ELECTRODE_OPTIONS, refOffset, xAxisLabel } from "../../utils/referenceE
 import { useContainerSize } from "../../hooks/useContainerSize";
 import AxisInput from "../AxisInput";
 
-const inputCls = "bg-white border border-gray-300 rounded px-1 py-0.5 text-gray-900";
+const inputCls = "bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400";
 
 interface Props {
   comparison: ComparisonSession;
@@ -200,7 +200,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
   return (
     <div className="h-full flex flex-col">
       {/* Controls */}
-      <div className="flex flex-col gap-0.5 px-3 py-1.5 bg-gray-100 border-b border-gray-300 text-xs text-gray-900 shrink-0">
+      <div className="flex flex-col gap-0.5 px-3 py-1.5 bg-panel-header border-b border-panel-border text-xs text-panel-text shrink-0">
 
         {/* Per-file rows */}
         {comparison.selections.map(sel => {
@@ -214,28 +214,28 @@ export default function CVComparePanel({ comparison, files }: Props) {
           return (
             <div key={sel.fileId} className="flex items-center gap-2 flex-wrap">
               <button onClick={() => toggleVisible(sel.fileId)}
-                      className={`shrink-0 transition-colors cursor-pointer ${isVisible ? "text-forest-500 hover:text-forest-300" : "text-gray-400 hover:text-gray-600"}`}
+                      className={`shrink-0 transition-colors cursor-pointer ${isVisible ? "text-forest-500 hover:text-forest-300" : "text-panel-muted hover:text-panel-text"}`}
                       title={isVisible ? "Hide trace" : "Show trace"}>
                 {isVisible ? <Eye size={11} /> : <EyeOff size={11} />}
               </button>
-              <span className={`text-[10px] rounded px-1.5 py-0.5 truncate max-w-[110px] transition-colors ${isVisible ? "bg-forest-800 text-forest-300" : "bg-gray-200 text-gray-400"}`}>
+              <span className={`text-[10px] rounded px-1.5 py-0.5 truncate max-w-[110px] transition-colors ${isVisible ? "bg-forest-800 text-forest-300" : "bg-panel-bg text-panel-muted"}`}>
                 {getLabel(file.id, file.name)}
               </span>
               {sr != null && (
                 <span className="text-[9px] text-forest-400 shrink-0">{sr} mV/s</span>
               )}
               {isSrNormRow && sr == null && (
-                <label className="flex items-center gap-1 text-[10px] text-gray-600">
+                <label className="flex items-center gap-1 text-[10px] text-panel-muted">
                   ν
                   <input type="number" min={0.1} step={1} placeholder="mV/s"
                          value={manualRates[sel.fileId] ?? ""}
                          onChange={e => setManualRates(prev => ({ ...prev, [sel.fileId]: Number(e.target.value) }))}
                          className={`w-16 ${inputCls}`} />
-                  <span className="text-gray-400">mV/s</span>
+                  <span className="text-panel-muted">mV/s</span>
                 </label>
               )}
               {maxCycles > 1 && (
-                <label className="flex items-center gap-1 text-[10px] text-gray-600">
+                <label className="flex items-center gap-1 text-[10px] text-panel-muted">
                   Cycle
                   <input
                     type="number" value={cycleVal} min={1} max={maxCycles}
@@ -245,7 +245,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
                     }))}
                     className={`w-10 ${inputCls}`}
                   />
-                  <span className="text-gray-400">/ {maxCycles}</span>
+                  <span className="text-panel-muted">/ {maxCycles}</span>
                 </label>
               )}
             </div>
@@ -253,26 +253,26 @@ export default function CVComparePanel({ comparison, files }: Props) {
         })}
 
         {/* Shared controls */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-gray-200">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-panel-border">
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] text-gray-500 shrink-0">Ref</span>
+            <span className="text-[10px] text-panel-muted shrink-0">Ref</span>
             <select value={refFrom} onChange={e => setRefFrom(e.target.value)} className={`${inputCls} text-[10px]`}>
               {ELECTRODE_OPTIONS.map(k => <option key={k}>{k}</option>)}
             </select>
-            <span className="text-gray-400 shrink-0">→</span>
+            <span className="text-panel-muted shrink-0">→</span>
             <select value={refTo} onChange={e => setRefTo(e.target.value)} className={`${inputCls} text-[10px]`}>
               {ELECTRODE_OPTIONS.map(k => <option key={k}>{k}</option>)}
             </select>
             {(refFrom === "RHE" || refTo === "RHE") && (
               <label className="flex items-center gap-1">
-                <span className="text-[10px] text-gray-500">pH</span>
+                <span className="text-[10px] text-panel-muted">pH</span>
                 <input type="number" value={pH} min={0} max={14} step={0.5}
                        onChange={e => setPH(Number(e.target.value))}
                        className={`w-10 ${inputCls}`} />
               </label>
             )}
             {vOffset !== 0 && (
-              <span className="text-[9px] text-gray-400 shrink-0">
+              <span className="text-[9px] text-panel-muted shrink-0">
                 ({vOffset > 0 ? "+" : ""}{vOffset.toFixed(3)} V)
               </span>
             )}
@@ -292,50 +292,50 @@ export default function CVComparePanel({ comparison, files }: Props) {
           )}
           {norm === "bv" && (
             <label className="flex items-center gap-1">
-              <span className="text-[10px] text-gray-500 shrink-0">b</span>
+              <span className="text-[10px] text-panel-muted shrink-0">b</span>
               <input type="number" value={bExp} min={0.1} max={1.5} step={0.05}
                      onChange={e => setBExp(Number(e.target.value))}
                      className={`w-14 ${inputCls}`} />
             </label>
           )}
-          <div className="flex rounded overflow-hidden border border-gray-300 shrink-0">
+          <div className="flex rounded overflow-hidden border border-panel-border shrink-0">
             <button onClick={() => setDragmode('zoom')} title="Box zoom"
-              className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+              className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'zoom' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>
               Zoom
             </button>
             <button onClick={() => setDragmode('pan')} title="Drag to pan"
-              className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+              className={`px-2 py-0.5 text-[10px] transition-colors ${dragmode === 'pan' ? 'bg-forest-600 text-white' : 'text-panel-muted hover:bg-panel-bg'}`}>
               Pan
             </button>
           </div>
 
           <button onClick={() => setAxesOpen(o => !o)}
-                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-50 border-forest-400 text-forest-700" : "border-gray-300 text-gray-500 hover:text-gray-700"}`}>
+                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] transition-colors ${axesOpen ? "bg-forest-600 border-forest-600 text-white" : "border-panel-border text-panel-muted hover:text-panel-text"}`}>
             Axes {axesOpen ? "▴" : "▾"}
           </button>
         </div>
 
         {/* Axes inputs */}
         {axesOpen && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-gray-200">
-            <span className="font-semibold text-gray-600">X</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 border-t border-panel-border">
+            <span className="font-semibold text-panel-muted">X</span>
             <AxisInput value={xMin} onChange={setXMin} placeholder="min" className={`w-16 ${inputCls}`} />
-            <span className="text-gray-400">–</span>
+            <span className="text-panel-muted">–</span>
             <AxisInput value={xMax} onChange={setXMax} placeholder="max" className={`w-16 ${inputCls}`} />
-            <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+            <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
               <input type="checkbox" checked={xLog} onChange={e => setXLog(e.target.checked)} className="accent-forest-400" /> log
             </label>
-            <span className="text-gray-300 px-1">│</span>
-            <span className="font-semibold text-gray-600">Y</span>
+            <span className="text-panel-muted px-1">│</span>
+            <span className="font-semibold text-panel-muted">Y</span>
             <AxisInput value={yMin} onChange={setYMin} placeholder="min" className={`w-16 ${inputCls}`} />
-            <span className="text-gray-400">–</span>
+            <span className="text-panel-muted">–</span>
             <AxisInput value={yMax} onChange={setYMax} placeholder="max" className={`w-16 ${inputCls}`} />
-            <label className="flex items-center gap-1 cursor-pointer text-gray-600">
+            <label className="flex items-center gap-1 cursor-pointer text-panel-muted">
               <input type="checkbox" checked={yLog} onChange={e => setYLog(e.target.checked)} className="accent-forest-400" /> log
             </label>
             {(xMin || xMax || yMin || yMax) && (
               <button onClick={() => { setXMin(""); setXMax(""); setYMin(""); setYMax(""); }}
-                      className="text-[10px] text-gray-400 hover:text-red-500 border border-gray-300 rounded px-1.5 py-0.5 transition-colors">
+                      className="text-[10px] text-panel-muted hover:text-red-500 border border-panel-border rounded px-1.5 py-0.5 transition-colors">
                 Reset
               </button>
             )}
@@ -350,11 +350,11 @@ export default function CVComparePanel({ comparison, files }: Props) {
                 Lock view
               </button>
             )}
-            <div className="w-full flex items-center gap-2 pt-1 border-t border-gray-100">
-              <span className="text-[10px] font-semibold text-gray-500 shrink-0">X label</span>
+            <div className="w-full flex items-center gap-2 pt-1 border-t border-panel-border">
+              <span className="text-[10px] font-semibold text-panel-muted shrink-0">X label</span>
               <input type="text" placeholder={xLabel} value={xTitleOverride} onChange={e => setXTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
-              <span className="text-[10px] font-semibold text-gray-500 shrink-0">Y label</span>
+              <span className="text-[10px] font-semibold text-panel-muted shrink-0">Y label</span>
               <input type="text" placeholder={yLabel} value={yTitleOverride} onChange={e => setYTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
             </div>
