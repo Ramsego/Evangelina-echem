@@ -3,7 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
 import { FlaskConical, Upload, Loader2 } from "lucide-react";
 import { ParsedFile } from "../types";
-import { uploadFiles } from "../api/client";
+import { uploadFiles, fetchSample } from "../api/client";
 import { APP_NAME } from "../constants";
 import clsx from "clsx";
 
@@ -16,6 +16,11 @@ interface Props {
 export default function LandingPage({ onFilesAdded }: Props) {
   const uploadMut = useMutation({
     mutationFn: uploadFiles,
+    onSuccess: onFilesAdded,
+  });
+
+  const sampleMut = useMutation({
+    mutationFn: fetchSample,
     onSuccess: onFilesAdded,
   });
 
@@ -33,7 +38,8 @@ export default function LandingPage({ onFilesAdded }: Props) {
     multiple: true,
   });
 
-  const busy = uploadMut.isPending;
+  const busy = uploadMut.isPending || sampleMut.isPending;
+  const sampleBusy = sampleMut.isPending;
 
   return (
     <div className="min-h-screen bg-forest-900 flex flex-col items-center justify-center px-6 py-16"
@@ -69,6 +75,35 @@ export default function LandingPage({ onFilesAdded }: Props) {
       <div className="w-full max-w-3xl rounded-2xl overflow-hidden border border-forest-700/50 mb-10"
            style={{ boxShadow: "0 0 80px rgba(64,145,108,0.20), 0 0 160px rgba(64,145,108,0.08)" }}>
         <img src="/demo.gif" alt="App demo" className="w-full block" />
+      </div>
+
+      {/* Primary CTA — try the app instantly with bundled sample data */}
+      <button
+        type="button"
+        onClick={() => sampleMut.mutate()}
+        disabled={busy}
+        className="w-full max-w-md flex items-center justify-center gap-2.5 rounded-xl px-8 py-4
+                   bg-forest-600 hover:bg-forest-500 text-forest-100 font-semibold text-sm
+                   shadow-lg shadow-forest-900/40 transition-colors
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forest-300
+                   disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {sampleBusy
+          ? <Loader2 size={18} className="animate-spin" />
+          : <FlaskConical size={18} />}
+        {sampleBusy ? "Loading sample data…" : "Try with sample data"}
+      </button>
+      {sampleMut.isError && (
+        <p className="text-xs text-red-400 mt-2 max-w-md text-center">
+          {(sampleMut.error as Error).message}
+        </p>
+      )}
+
+      {/* Divider */}
+      <div className="w-full max-w-md flex items-center gap-3 my-5">
+        <span className="flex-1 h-px bg-forest-700/60" />
+        <span className="text-xs text-forest-600 uppercase tracking-wider">or</span>
+        <span className="flex-1 h-px bg-forest-700/60" />
       </div>
 
       {/* Drop zone */}
