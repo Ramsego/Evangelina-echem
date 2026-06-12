@@ -435,7 +435,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
                 </span>
                 <button
                   onClick={() => compareTarget === key ? setCompareTarget(null) : openCompareFor(key, groupFiles)}
-                  className="text-[10px] text-forest-700 hover:text-forest-900 border border-forest-600/50 rounded px-1.5 py-0.5 hover:bg-forest-100 transition-colors"
+                  className="text-[10px] text-[color:var(--sidebar-accent)] border border-[color:var(--sidebar-accent-border)] rounded px-1.5 py-0.5 hover:bg-[color:var(--sidebar-accent-hover)] transition-colors"
                 >
                   {compareTarget === key ? "✕" : "Compare ▸"}
                 </button>
@@ -513,7 +513,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
                   name:   `${getLabel(f.id, f.name)} Analysis`,
                   fileId: f.id,
                 })}
-                className="text-[10px] text-forest-700 hover:text-forest-900 border border-forest-600/50 rounded px-1.5 py-0.5 hover:bg-forest-100 transition-colors shrink-0"
+                className="text-[10px] text-[color:var(--sidebar-accent)] border border-[color:var(--sidebar-accent-border)] rounded px-1.5 py-0.5 hover:bg-[color:var(--sidebar-accent-hover)] transition-colors shrink-0"
               >
                 Analyse ▸
               </button>

@@ -23,12 +23,16 @@
 
   --body-bg: #0B1610;
   --body-text: #D1FAE5;
-  --sidebar-bg: linear-gradient(180deg, #52B788 0%, #74929E 12%, #94A3B8 26%, #AEBDCC 45%, #C4D1DC 65%, #D8E4EC 85%, #E8EFF5 100%);
-  --scrollbar-thumb: #334155;
+  /* Forest: brand-green band at top fading through sage/eucalyptus neutrals to a green-tinted off-white */
+  --sidebar-bg: linear-gradient(180deg, #52B788 0%, #7BB59E 12%, #9DC4B0 26%, #BAD2C4 45%, #D2E1D7 65%, #E4EDE8 85%, #F2F6F2 100%);
+  --scrollbar-thumb: #3C5C49;
 
   --sidebar-text:   #1F2937;
-  --sidebar-muted:  #6B7280;
-  --sidebar-border: rgba(0, 0, 0, 0.1);
+  --sidebar-muted:  #5F7A6B;
+  --sidebar-border: rgba(27, 67, 50, 0.12);
+  --sidebar-accent:        #1B4332;
+  --sidebar-accent-border: rgba(45, 106, 79, 0.5);
+  --sidebar-accent-hover:  #D1FAE5;
 
   --panel-bg:    #111E16;
   --panel-bgalt: #0D1C14;
@@ -64,6 +68,9 @@
   --sidebar-text:   #E6EDF3;
   --sidebar-muted:  #8B949E;
   --sidebar-border: rgba(240, 246, 252, 0.1);
+  --sidebar-accent:        #74C69D;
+  --sidebar-accent-border: rgba(82, 183, 136, 0.45);
+  --sidebar-accent-hover:  rgba(82, 183, 136, 0.14);
 
   --panel-bg:    #0D1117;
   --panel-bgalt: #161B26;
@@ -99,6 +106,9 @@
   --sidebar-text:   #1F2937;
   --sidebar-muted:  #6B7280;
   --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-accent:        #1B4332;
+  --sidebar-accent-border: rgba(45, 106, 79, 0.5);
+  --sidebar-accent-hover:  #D1FAE5;
 
   --panel-bg:    #ffffff;
   --panel-bgalt: #F9FAFB;
