@@ -87,7 +87,12 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
   const { exportAll, collectAll } = useExportContext();
   const { globalStyle, panelStyles, selectedId, setGlobal, setPanel, clearPanel, legendAutoSizes } = useStyleContext();
   const editingStyle   = selectedId ? { ...globalStyle, ...(panelStyles[selectedId] ?? {}) } : globalStyle;
-  const updateStyle    = (s: StyleSettings) => selectedId ? setPanel(selectedId, s) : setGlobal(s);
+  const updateStyle    = (s: StyleSettings) => {
+    if (selectedId) { setPanel(selectedId, s); return; }
+    // A global style choice pins the framework so theme switches no longer override it.
+    localStorage.setItem("app.styleFrameworkPinned", "true");
+    setGlobal(s);
+  };
   const selectedFile   = selectedId ? files.find(f => f.id === selectedId) : null;
   const selectedAutoLegendSize = selectedId ? legendAutoSizes[selectedId] : undefined;
   const [showColorEditor, setShowColorEditor] = useState(false);

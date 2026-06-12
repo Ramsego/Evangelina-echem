@@ -1,5 +1,9 @@
-import { createContext, useContext, useState, useMemo, useCallback, ReactNode } from "react";
-import { StyleSettings, DEFAULT_STYLE } from "../styles/styleTypes";
+import { createContext, useContext, useState, useMemo, useCallback, useEffect, ReactNode } from "react";
+import { StyleSettings, DEFAULT_STYLE, FRAMEWORKS } from "../styles/styleTypes";
+import { useTheme } from "./ThemeContext";
+
+// Plot framework that matches each UI theme when the user hasn't pinned one explicitly.
+const THEME_FRAMEWORK = { forest: "Forest (Dark)", dark: "Forest (Dark)", light: "Default" } as const;
 
 interface StyleCtx {
   globalStyle: StyleSettings;
@@ -28,6 +32,17 @@ export function StyleProvider({
   const [panelStyles, setPanelStyles] = useState<Record<string, StyleSettings>>({});
   const [selectedId,  setSelected]    = useState<string | null>(null);
   const [legendAutoSizes, setLegendAutoSizes] = useState<Record<string, number>>({});
+
+  // Keep the global plot framework in step with the UI theme (light theme → light
+  // plots), unless the user has explicitly chosen a framework (see Sidebar.updateStyle).
+  const { theme } = useTheme();
+  useEffect(() => {
+    if (localStorage.getItem("app.styleFrameworkPinned") === "true") return;
+    const target = THEME_FRAMEWORK[theme];
+    if (globalStyle.framework !== target) {
+      setGlobal({ ...DEFAULT_STYLE, ...FRAMEWORKS[target], framework: target });
+    }
+  }, [theme]); // eslint-disable-line react-hooks/exhaustive-deps -- sync on theme change only
 
   const setPanel = useCallback((id: string, s: StyleSettings) =>
     setPanelStyles(prev => ({ ...prev, [id]: s })), []);

@@ -36,6 +36,8 @@
 
   --panel-bg:    #111E16;
   --panel-bgalt: #0D1C14;
+  --chip-bg:     #111E16;
+  --chip-text:   #74C69D;
   --panel-text:  #A8D5BA;
   --panel-muted: #74C69D;
   --panel-border: #1B4332;
@@ -74,6 +76,8 @@
 
   --panel-bg:    #0D1117;
   --panel-bgalt: #161B26;
+  --chip-bg:     #161B26;
+  --chip-text:   #74C69D;
   --panel-text:  #E6EDF3;
   --panel-muted: #8B949E;
   --panel-border: #30363D;
@@ -112,6 +116,8 @@
 
   --panel-bg:    #ffffff;
   --panel-bgalt: #F9FAFB;
+  --chip-bg:     #D1FAE5;
+  --chip-text:   #1B4332;
   --panel-text:  #1F2937;
   --panel-muted: #6B7280;
   --panel-border: #E5E7EB;

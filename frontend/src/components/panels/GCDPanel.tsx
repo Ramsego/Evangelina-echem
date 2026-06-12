@@ -31,7 +31,7 @@ const LAYOUT_BASE: Partial<Plotly.Layout> = {
 type GCDView = "cyclelife" | "profiles" | "dqdv" | "energy";
 
 const inputCls = "bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-panel-text focus:outline-none focus:ring-1 focus:ring-forest-400";
-const chipCls  = "text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5";
+const chipCls  = "text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5";
 const warnCls  = "text-[10px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-0.5";
 
 interface Props { file: ParsedFile }
@@ -616,7 +616,7 @@ export default function GCDPanel({ file }: Props) {
       </div>
 
       {/* Status line */}
-      <div className="px-3 py-0.5 bg-forest-900/50 border-b border-forest-700/20 shrink-0 text-[10px] text-forest-400">
+      <div className="px-3 py-0.5 bg-forest-900/50 border-b border-forest-700/20 shrink-0 text-[10px] text-panel-muted">
         {totalCycles} cycles · {view === "cyclelife" ? "cycle life" : view === "profiles" ? "profiles" : view === "dqdv" ? "dQ/dV" : "energy"}
       </div>
 

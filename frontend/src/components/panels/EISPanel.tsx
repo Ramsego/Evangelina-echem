@@ -436,29 +436,29 @@ export default function EISPanel({ file }: Props) {
                 <span className="text-[10px] text-forest-200 bg-forest-700/60 rounded px-2 py-0.5 font-medium">
                   {MODEL_LABEL[f.model] ?? f.model}
                 </span>
-                <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                   R_s {fmtPm(f.R_s, f.R_s_err)} Ω
                 </span>
-                <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                   R_ct {fmtPm(f.R_ct, f.R_ct_err)} Ω
                 </span>
                 {f.C_dl_uF != null && (
-                  <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                  <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                     C_dl {fmtPm(f.C_dl_uF, f.C_dl_uF_err)} µF
                   </span>
                 )}
                 {f.Q != null && (
-                  <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                  <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                     Q {fmtPm(f.Q, f.Q_err)} S·s^α
                   </span>
                 )}
                 {f.alpha != null && (
-                  <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                  <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                     α {fmtPm(f.alpha, f.alpha_err)}
                   </span>
                 )}
                 {f.sigma != null && (
-                  <span className="text-[10px] text-forest-300 bg-forest-800 rounded px-2 py-0.5">
+                  <span className="text-[10px] text-[color:var(--chip-text)] bg-[color:var(--chip-bg)] rounded px-2 py-0.5">
                     σ {fmtPm(f.sigma, f.sigma_err)} Ω·s^-½
                   </span>
                 )}
