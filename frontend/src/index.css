@@ -134,6 +134,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Keyboard-only focus ring for icon buttons and links that have no other focus affordance */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgb(var(--f400));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .react-grid-item.react-grid-placeholder {
   background: rgb(var(--f600));
   opacity: 0.18;

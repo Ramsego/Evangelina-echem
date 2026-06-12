@@ -374,7 +374,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
           <ul className="flex flex-col gap-0.5 px-2 pb-4">
             {files.map(f => (
               <li key={f.id}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-black/8 group">
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-black/8 transition-colors group">
                 {groupKeyOf(f) && (
                   <input
                     type="checkbox"
