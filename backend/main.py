@@ -37,18 +37,18 @@ app.add_middleware(RequestIdMiddleware)
 
 
 # CORS: set ALLOWED_ORIGINS env var to a comma-separated list for production.
-# Falls back to any localhost port when running locally (Vite may auto-assign).
+# Falls back to local loopback origins when running locally (Vite may auto-assign).
 if not ALLOWED_ORIGINS:
     import warnings
     warnings.warn(
-        "ALLOWED_ORIGINS not set — CORS falling back to localhost only. Set this env var in production.",
+        "ALLOWED_ORIGINS not set — CORS falling back to local loopback origins only. Set this env var in production.",
         stacklevel=1,
     )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    **({} if ALLOWED_ORIGINS else {"allow_origin_regex": r"http://localhost:\d+"}),
+    **({} if ALLOWED_ORIGINS else {"allow_origin_regex": r"http://(localhost|127\.0\.0\.1|\[::1\]):\d+"}),
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
@@ -63,6 +63,11 @@ async def _generic_error(request: Request, exc: Exception) -> JSONResponse:
         status_code=500,
         content={"detail": "Internal server error", "request_id": req_id},
     )
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok"}
+
 
 app.include_router(files.router,    prefix="/api")
 app.include_router(analysis.router, prefix="/api/analyze")

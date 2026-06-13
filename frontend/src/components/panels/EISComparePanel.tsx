@@ -8,7 +8,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
-import { useExportContext, CollectResult } from "../../context/ExportContext";
+import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
 import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -69,13 +69,14 @@ export default function EISComparePanel({ comparison, files }: Props) {
   const { register, unregister } = useExportContext();
   const handleExportRef = useRef<(fmt: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
+  const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${view}`;
   const { onRelayout: zoomOnRelayout, legendState, hasZoom, getRangeSnapshot } = useZoom(uiRevKey);
   const [plotRef, plotSize] = useContainerSize();
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -221,10 +222,35 @@ export default function EISComparePanel({ comparison, files }: Props) {
     }
   }
 
+  function buildSheets(): ExportSheet[] {
+    const visibleFiles = eisFiles.filter(f => visible[f.id] !== false);
+    const headers: string[] = [];
+    const units:   string[] = [];
+    let maxLen = 0;
+    const nyq = view === "nyquist";
+    visibleFiles.forEach(f => {
+      const n = getLabel(f.id, f.name);
+      if (nyq) { headers.push(`Zreal_${n}`, `NegZimag_${n}`); units.push("Ohm", "Ohm"); maxLen = Math.max(maxLen, f.eis!.zreal.length); }
+      else     { headers.push(`Freq_${n}`,  `Zmod_${n}`);     units.push("Hz", "Ohm");   maxLen = Math.max(maxLen, f.eis!.freq.length); }
+    });
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < maxLen; i++) {
+      const row = visibleFiles.flatMap(f => {
+        const eis = f.eis!;
+        return nyq
+          ? [eis.zreal[i] ?? null, eis.zimag[i] != null ? -eis.zimag[i] : null]
+          : [eis.freq[i] ?? null,  eis.zmod[i] ?? null];
+      });
+      rows.push(row);
+    }
+    return [{ name: "Plotted", headers, units, rows }];
+  }
+
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
     exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg");
   };
+  sheetsRef.current = buildSheets;
   collectRef.current = () => ({
     filename: comparison.name,
     csv:      buildCsv(),

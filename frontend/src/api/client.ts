@@ -14,18 +14,30 @@ import {
 // when backend and frontend are on different origins.
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
 
+const NETWORK_ERR = "Cannot reach the server — make sure the backend is running (uvicorn main:app --reload).";
+
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(NETWORK_ERR);
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<T>;
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+  let res: Response;
+  try {
+    res = await fetch(path);
+  } catch {
+    throw new Error(NETWORK_ERR);
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<T>;
 }
@@ -35,7 +47,12 @@ const ANALYZE = `${BASE}/analyze`;
 export async function uploadFiles(files: File[]): Promise<ParsedFile[]> {
   const form = new FormData();
   for (const f of files) form.append("files", f);
-  const res = await fetch(`${BASE}/upload`, { method: "POST", body: form });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/upload`, { method: "POST", body: form });
+  } catch {
+    throw new Error(NETWORK_ERR);
+  }
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -64,11 +81,18 @@ export async function analyzeDunn(body: DunnRequest): Promise<DunnResponse> {
   return post(`${ANALYZE}/dunn`, body);
 }
 
+export interface CycleSegment {
+  label: string;
+  cycle: number;
+  start: number;
+  end:   number;
+}
+
 export async function fetchCycles(
   fileId: string,
   start: number,
   end: number,
-): Promise<{ times: number[]; voltages: number[] }> {
+): Promise<{ times: number[]; voltages: number[]; segments?: CycleSegment[] }> {
   return get(`${BASE}/files/${fileId}/cycles?start=${start}&end=${end}`);
 }
 
@@ -127,6 +151,15 @@ export async function exportData(body: object, stem: string, format: "xlsx" | "c
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/** Export pre-built plotted-only sheets (the panel's exact figure columns). */
+export async function exportSheets(
+  sheets: object[],
+  stem: string,
+  format: "xlsx" | "csv" | "opju",
+): Promise<void> {
+  return exportData({ sheets }, stem, format);
 }
 
 export async function fetchCVCurves(

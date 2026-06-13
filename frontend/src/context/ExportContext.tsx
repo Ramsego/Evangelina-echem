@@ -10,21 +10,32 @@ export interface CollectResult {
   layout:   Partial<Plotly.Layout>;
 }
 
+/** A pre-built table = the exact plotted columns, handed to the backend verbatim. */
+export interface ExportSheet {
+  name:    string;
+  headers: string[];
+  units?:  string[];
+  rows:    (string | number | null)[][];
+}
+
 type ExportFn  = (fmt: ExportFmt) => void;
 type CollectFn = () => CollectResult;
+type SheetsFn  = () => ExportSheet[];
 
 interface PanelEntry {
-  exportFn:  ExportFn;
-  collectFn: CollectFn;
+  exportFn:   ExportFn;
+  collectFn:  CollectFn;
+  buildSheets?: SheetsFn;
 }
 
 interface ExportContextValue {
-  register:   (id: string, exportFn: ExportFn, collectFn: CollectFn) => void;
+  register:   (id: string, exportFn: ExportFn, collectFn: CollectFn, buildSheets?: SheetsFn) => void;
   unregister: (id: string) => void;
   exportOne:  (id: string, fmt: ExportFmt) => void;
   exportAll:  (fmt: ExportFmt) => void;
   collectOne: (id: string) => CollectResult | undefined;
   collectAll: () => CollectResult[];
+  collectSheets: (id: string) => ExportSheet[] | undefined;
 }
 
 const ExportContext = createContext<ExportContextValue | null>(null);
@@ -32,8 +43,8 @@ const ExportContext = createContext<ExportContextValue | null>(null);
 export function ExportProvider({ children }: { children: React.ReactNode }) {
   const registry = useRef(new Map<string, PanelEntry>());
 
-  const register = (id: string, exportFn: ExportFn, collectFn: CollectFn) =>
-    registry.current.set(id, { exportFn, collectFn });
+  const register = (id: string, exportFn: ExportFn, collectFn: CollectFn, buildSheets?: SheetsFn) =>
+    registry.current.set(id, { exportFn, collectFn, buildSheets });
 
   const unregister = (id: string) => registry.current.delete(id);
 
@@ -54,8 +65,11 @@ export function ExportProvider({ children }: { children: React.ReactNode }) {
   const collectAll = (): CollectResult[] =>
     Array.from(registry.current.values()).map(({ collectFn }) => collectFn());
 
+  const collectSheets = (id: string): ExportSheet[] | undefined =>
+    registry.current.get(id)?.buildSheets?.();
+
   return (
-    <ExportContext.Provider value={{ register, unregister, exportOne, exportAll, collectOne, collectAll }}>
+    <ExportContext.Provider value={{ register, unregister, exportOne, exportAll, collectOne, collectAll, collectSheets }}>
       {children}
     </ExportContext.Provider>
   );

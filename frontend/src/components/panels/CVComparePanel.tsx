@@ -6,7 +6,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
-import { useExportContext, CollectResult } from "../../context/ExportContext";
+import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
 import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, parseScanRateMvs, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -66,13 +66,14 @@ export default function CVComparePanel({ comparison, files }: Props) {
   const { register, unregister } = useExportContext();
   const handleExportRef = useRef<(fmt: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
+  const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${norm}-${refFrom}-${refTo}`;
   const { onRelayout: zoomOnRelayout, legendState, hasZoom, getRangeSnapshot } = useZoom(uiRevKey);
   const [plotRef, plotSize] = useContainerSize();
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -137,7 +138,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
     ...(clamp.y && { yaxis: { ...(styledLayout.yaxis ?? {}), autorange: false as const, range: clamp.y } }),
   }), [styledLayout, uirevision, dragmode, legendFontSize, legendState, clamp]);
 
-  function buildCsv(): string {
+  function plottedColumns(): { headers: string[]; units: string[]; rows: (number | null)[][] } {
     const visibleSels = comparison.selections.filter(sel => visible[sel.fileId] !== false);
     const selWithData = visibleSels.flatMap(sel => {
       const file = fileMap[sel.fileId];
@@ -161,7 +162,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
     });
 
     const maxLen = Math.max(0, ...selWithData.map(s => s.curve.vf.length));
-    const rows: string[] = [];
+    const rows: (number | null)[][] = [];
     for (let r = 0; r < maxLen; r++) {
       const row = selWithData.flatMap(({ file, curve }) => {
         const srMvsCsv = parseScanRateMvs(file.metadata?.SCANRATE) ?? manualRates[file.id] ?? null;
@@ -172,18 +173,29 @@ export default function CVComparePanel({ comparison, files }: Props) {
                        : norm === "sqrt_scan_rate" ? Math.sqrt(srVsCsv)
                        : norm === "bv"             ? Math.pow(srVsCsv, bExp)
                        : 1.0;
-        const cols = [
-          curve.vf[r] !== undefined ? (curve.vf[r] + vOffset).toFixed(6) : "",
-          curve.im[r] !== undefined ? (curve.im[r] * 1000).toFixed(6) : "",
+        const cols: (number | null)[] = [
+          curve.vf[r] !== undefined ? curve.vf[r] + vOffset : null,
+          curve.im[r] !== undefined ? curve.im[r] * 1000 : null,
         ];
         if (isSrNorm) {
-          cols.push(curve.im[r] !== undefined ? ((curve.im[r] / divCsv) * 1000).toFixed(6) : "");
+          cols.push(curve.im[r] !== undefined ? (curve.im[r] / divCsv) * 1000 : null);
         }
         return cols;
       });
-      rows.push(row.join(","));
+      rows.push(row);
     }
-    return [headers.join(","), units.join(","), ...rows].join("\n");
+    return { headers, units, rows };
+  }
+
+  function buildCsv(): string {
+    const { headers, units, rows } = plottedColumns();
+    const dataRows = rows.map(row => row.map(v => (v === null ? "" : v.toFixed(6))).join(","));
+    return [headers.join(","), units.join(","), ...dataRows].join("\n");
+  }
+
+  function buildSheets(): ExportSheet[] {
+    const { headers, units, rows } = plottedColumns();
+    return [{ name: "Plotted", headers, units, rows }];
   }
 
   handleExportRef.current = (fmt: string) => {
@@ -196,6 +208,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
     plotData: styledData,
     layout,
   });
+  sheetsRef.current = buildSheets;
 
   return (
     <div className="h-full flex flex-col">

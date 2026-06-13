@@ -11,7 +11,7 @@ export default defineConfig({
     // Honour PORT when the harness/preview assigns one; default 5173 otherwise
     port: process.env.PORT ? Number(process.env.PORT) : 5173,
     proxy: {
-      "/api": { target: "http://localhost:8000", changeOrigin: true },
+      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
     },
   },
   test: {

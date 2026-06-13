@@ -13,11 +13,21 @@ export interface CVAnalysisPlots {
   sr:   SrPlotExport[];
 }
 
+export interface MetricRow {
+  section:     string;
+  metric:      string;
+  cycle:       string;
+  value:       string;
+  unit:        string;
+  explanation: string;
+}
+
 interface Props {
-  file:         ParsedFile;
-  files:        ParsedFile[];
-  getCsvRef:    React.MutableRefObject<() => string>;
-  getPlotRef:   React.MutableRefObject<() => CVAnalysisPlots>;
+  file:           ParsedFile;
+  files:          ParsedFile[];
+  getCsvRef:      React.MutableRefObject<() => string>;
+  getPlotRef:     React.MutableRefObject<() => CVAnalysisPlots>;
+  getMetricRowsRef: React.MutableRefObject<() => MetricRow[]>;
 }
 
 const EXPLAIN: Record<string, string> = {
@@ -64,7 +74,7 @@ function ExplainRow({ cols, text }: { cols: number; text: string }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef }: Props) {
+export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, getMetricRowsRef }: Props) {
   const curves       = file.curves ?? [];
   const total        = curves.length;
   const detectedRate = parseScanRateMvs(file.metadata?.SCANRATE);
@@ -130,6 +140,40 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef }: 
     enabled: selectedCurves.length > 0,
   });
 
+  // ── Metric rows (structured) — the always-available capacitance/area/peaks
+  // table, independent of the SR/Dunn accordion state. Shared by CSV, the table
+  // image, and the XLSX export so all three agree.
+  function buildMetricRows(): MetricRow[] {
+    const rows: MetricRow[] = [];
+    displayCaps.forEach((c, i) => {
+      rows.push({ section: "Capacitance & Area", metric: "C", cycle: String(selectedIndices[i] + 1), value: c.toFixed(4), unit: "mF", explanation: i === 0 ? EXPLAIN.c : "" });
+    });
+    areas.forEach((a, i) => {
+      rows.push({ section: "Capacitance & Area", metric: "Area", cycle: String(selectedIndices[i] + 1), value: a.toFixed(4), unit: "mA·V", explanation: i === 0 ? EXPLAIN.area : "" });
+    });
+    if (displayCaps.length >= 2) {
+      rows.push({ section: "Capacitance & Area", metric: "C (mean ± std)", cycle: "—", value: `${mean(displayCaps).toFixed(4)} ± ${std(displayCaps).toFixed(4)}`, unit: "mF", explanation: "" });
+      rows.push({ section: "Capacitance & Area", metric: "Area (mean ± std)", cycle: "—", value: `${mean(areas).toFixed(4)} ± ${std(areas).toFixed(4)}`, unit: "mA·V", explanation: "" });
+    }
+    peaks.forEach((pk, i) => {
+      const eOx = pk.oxidation.voltages[0];
+      const eRed = pk.reduction.voltages[0];
+      const ipA  = pk.oxidation.currents[0];
+      const ipC  = pk.reduction.currents[0];
+      const dEp  = eOx != null && eRed != null ? (eOx - eRed) * 1000 : null;
+      const eH   = eOx != null && eRed != null ? (eOx + eRed) / 2 : null;
+      const rat  = ipA != null && ipC != null && ipA !== 0 ? Math.abs(ipC / ipA) : null;
+      const cyc  = String(selectedIndices[i] + 1);
+      rows.push({ section: "Peaks", metric: "E_ox",      cycle: cyc, value: fmt(eOx, 4), unit: "V",  explanation: i === 0 ? EXPLAIN.eox : "" });
+      rows.push({ section: "Peaks", metric: "E_red",     cycle: cyc, value: fmt(eRed, 4), unit: "V", explanation: i === 0 ? EXPLAIN.ered : "" });
+      rows.push({ section: "Peaks", metric: "ΔEp",       cycle: cyc, value: fmt(dEp, 2), unit: "mV", explanation: i === 0 ? EXPLAIN.dep : "" });
+      rows.push({ section: "Peaks", metric: "E½",        cycle: cyc, value: fmt(eH, 4), unit: "V",   explanation: i === 0 ? EXPLAIN.ehalf : "" });
+      rows.push({ section: "Peaks", metric: "|ip_c/ip_a|", cycle: cyc, value: fmt(rat, 3), unit: "—", explanation: i === 0 ? EXPLAIN.ratio : "" });
+    });
+    return rows;
+  }
+  getMetricRowsRef.current = buildMetricRows;
+
   // ── CSV builder ──────────────────────────────────────────────────────────────
   function buildCsv(): string {
     const cellLabel = cellConfig === "full_symmetric" ? "2-electrode symmetric (×2 correction applied)" : "3-electrode half-cell";
@@ -141,31 +185,8 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef }: 
       `# Cell configuration: ${cellLabel}`,
       `Section,Metric,Cycle,Value,Unit,Explanation`,
     ];
-
-    displayCaps.forEach((c, i) => {
-      lines.push(`Capacitance & Area,C,${selectedIndices[i] + 1},${c.toFixed(4)},mF,"${i === 0 ? EXPLAIN.c.replace(/"/g, "'") : ''}"`);
-    });
-    areas.forEach((a, i) => {
-      lines.push(`Capacitance & Area,Area,${selectedIndices[i] + 1},${a.toFixed(4)},mA·V,"${i === 0 ? EXPLAIN.area.replace(/"/g, "'") : ''}"`);
-    });
-    if (displayCaps.length >= 2) {
-      lines.push(`Capacitance & Area,C (mean ± std),—,${mean(displayCaps).toFixed(4)} ± ${std(displayCaps).toFixed(4)},mF,""`);
-      lines.push(`Capacitance & Area,Area (mean ± std),—,${mean(areas).toFixed(4)} ± ${std(areas).toFixed(4)},mA·V,""`);
-    }
-
-    peaks.forEach((pk, i) => {
-      const eOx = pk.oxidation.voltages[0];
-      const eRed = pk.reduction.voltages[0];
-      const ipA  = pk.oxidation.currents[0];
-      const ipC  = pk.reduction.currents[0];
-      const dEp  = eOx != null && eRed != null ? (eOx - eRed) * 1000 : null;
-      const eH   = eOx != null && eRed != null ? (eOx + eRed) / 2 : null;
-      const rat  = ipA != null && ipC != null && ipA !== 0 ? Math.abs(ipC / ipA) : null;
-      lines.push(`Peaks,E_ox,${selectedIndices[i] + 1},${fmt(eOx, 4)},V,"${i === 0 ? EXPLAIN.eox.replace(/"/g, "'") : ''}"`);
-      lines.push(`Peaks,E_red,${selectedIndices[i] + 1},${fmt(eRed, 4)},V,"${i === 0 ? EXPLAIN.ered.replace(/"/g, "'") : ''}"`);
-      lines.push(`Peaks,ΔEp,${selectedIndices[i] + 1},${fmt(dEp, 2)},mV,"${i === 0 ? EXPLAIN.dep.replace(/"/g, "'") : ''}"`);
-      lines.push(`Peaks,E½,${selectedIndices[i] + 1},${fmt(eH, 4)},V,"${i === 0 ? EXPLAIN.ehalf.replace(/"/g, "'") : ''}"`);
-      lines.push(`Peaks,|ip_c/ip_a|,${selectedIndices[i] + 1},${fmt(rat, 3)},—,"${i === 0 ? EXPLAIN.ratio.replace(/"/g, "'") : ''}"`);
+    buildMetricRows().forEach(r => {
+      lines.push(`${r.section},${r.metric},${r.cycle},${r.value},${r.unit},"${r.explanation.replace(/"/g, "'")}"`);
     });
 
     const srSection   = getSrCsvRef.current();

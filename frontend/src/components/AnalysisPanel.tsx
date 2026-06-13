@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { GripHorizontal, X, Download, Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { ParsedFile, AnalysisSession } from "../types";
 import { useExportContext } from "../context/ExportContext";
+import { exportSheets } from "../api/client";
 import { downloadCsv, exportPlotImage } from "../utils/exportUtils";
-import CVAnalysisPanel, { CVAnalysisPlots } from "./panels/CVAnalysisPanel";
+import CVAnalysisPanel, { CVAnalysisPlots, MetricRow } from "./panels/CVAnalysisPanel";
 import EISAnalysisPanel from "./panels/EISAnalysisPanel";
 import GCDAnalysisPanel from "./panels/GCDAnalysisPanel";
 import FullscreenOverlay from "./FullscreenOverlay";
@@ -42,8 +43,12 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
   const [editing,    setEditing]    = useState(false);
   const [draft,      setDraft]      = useState("");
 
-  const getCsvRef    = useRef<() => string>(() => "");
-  const getPlotRef   = useRef<() => CVAnalysisPlots>(() => ({ dunn: null, sr: [] }));
+  const getCsvRef        = useRef<() => string>(() => "");
+  const getPlotRef       = useRef<() => CVAnalysisPlots>(() => ({ dunn: null, sr: [] }));
+  const getMetricRowsRef = useRef<() => MetricRow[]>(() => []);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [busy,     setBusy]     = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { register, unregister } = useExportContext();
 
   const handleExportRef = useRef<(fmt: string) => void>(() => {});
@@ -77,6 +82,66 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
     register(session.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
     return () => unregister(session.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable; mount-only registration is intentional
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  const base = session.name.replace(/\.dta$/i, "");
+
+  // The capacitance/peak table rendered as a Plotly table figure, so it exports
+  // as an image even when the SR/Dunn accordions are closed. (Hex colours are
+  // intentional for Plotly figures, per CLAUDE.md.)
+  function exportTablePng() {
+    const rows = getMetricRowsRef.current();
+    if (!rows.length) return;
+    const cols = ["Section", "Metric", "Cycle", "Value", "Unit"] as const;
+    const cells = cols.map(c => rows.map(r => r[c.toLowerCase() as keyof MetricRow]));
+    const trace = {
+      type: "table" as const,
+      header: {
+        values: cols.map(c => `<b>${c}</b>`),
+        fill: { color: "#1B4332" },
+        font: { color: "#FFFFFF", size: 13 },
+        align: "left" as const,
+        height: 28,
+      },
+      cells: {
+        values: cells,
+        fill: { color: "#F4FBF7" },
+        font: { color: "#0B1610", size: 12 },
+        align: "left" as const,
+        height: 24,
+      },
+    };
+    exportPlotImage([trace] as never, { margin: { l: 8, r: 8, t: 8, b: 8 } }, `${base}_metrics`, "png");
+  }
+
+  async function exportTableXlsx() {
+    const rows = getMetricRowsRef.current();
+    if (!rows.length) return;
+    setBusy(true);
+    try {
+      const sheet = {
+        name: "Metrics",
+        headers: ["Section", "Metric", "Cycle", "Value", "Unit", "Explanation"],
+        rows: rows.map(r => [r.section, r.metric, r.cycle, r.value, r.unit, r.explanation]),
+      };
+      await exportSheets([sheet], base, "xlsx");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function exportSubPlots() {
+    const plots = getPlotRef.current();
+    if (plots.dunn) exportPlotImage(plots.dunn.data, plots.dunn.layout, `${base}_dunn`, "png");
+    plots.sr.forEach(p => exportPlotImage(p.data, p.layout, `${base}_${p.name}`, "png"));
+  }
+  const hasSubPlots = () => { const p = getPlotRef.current(); return !!p.dunn || p.sr.length > 0; };
 
   const label = etype ? (TYPE_LABEL[etype] ?? "Analysis") : "Analysis";
   const color = etype ? (TYPE_COLOR[etype] ?? "bg-forest-700/50 text-forest-400") : "bg-forest-700/50 text-forest-400";
@@ -116,22 +181,34 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
 
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${color}`}>{label}</span>
 
-        <button
-          onClick={() => downloadCsv(getCsvRef.current(), session.name)}
-          onMouseDown={e => e.stopPropagation()}
-          title="Download CSV"
-          className="shrink-0 text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
-        >
-          <Download size={13} />
-        </button>
-        {isCV && (
+        {isCV ? (
+          <div ref={menuRef} className="relative shrink-0" onMouseDown={e => e.stopPropagation()}>
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              title="Export / download"
+              className="text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
+            >
+              <Download size={13} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-5 z-20 flex flex-col w-40 rounded-md border border-forest-700 bg-forest-900 shadow-lg shadow-forest-950/40 py-1 text-[11px] text-forest-200">
+                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { downloadCsv(getCsvRef.current(), session.name); setMenuOpen(false); }}>Table — CSV</button>
+                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { exportTablePng(); setMenuOpen(false); }}>Table — PNG</button>
+                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors disabled:opacity-50" disabled={busy} onClick={() => { exportTableXlsx(); setMenuOpen(false); }}>Table — XLSX</button>
+                {hasSubPlots() && (
+                  <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors border-t border-forest-700 mt-1 pt-1.5" onClick={() => { exportSubPlots(); setMenuOpen(false); }}>Plots — PNG</button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
           <button
-            onClick={() => handleExportRef.current("png")}
+            onClick={() => downloadCsv(getCsvRef.current(), session.name)}
             onMouseDown={e => e.stopPropagation()}
-            title="Download plot(s) as PNG"
-            className="shrink-0 text-forest-600 hover:text-forest-300 transition-colors cursor-pointer text-[10px] font-semibold leading-none px-0.5"
+            title="Download CSV"
+            className="shrink-0 text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
           >
-            PNG
+            <Download size={13} />
           </button>
         )}
 
@@ -171,7 +248,7 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
       {!file && (
         <div className="flex-1 flex items-center justify-center text-forest-500 text-sm">File not found</div>
       )}
-      {file && isCV  && <CVAnalysisPanel  file={file} files={files} getCsvRef={getCsvRef} getPlotRef={getPlotRef} />}
+      {file && isCV  && <CVAnalysisPanel  file={file} files={files} getCsvRef={getCsvRef} getPlotRef={getPlotRef} getMetricRowsRef={getMetricRowsRef} />}
       {file && isEIS && <EISAnalysisPanel file={file} getCsvRef={getCsvRef} />}
       {file && isGCD && <GCDAnalysisPanel file={file} getCsvRef={getCsvRef} />}
     </>

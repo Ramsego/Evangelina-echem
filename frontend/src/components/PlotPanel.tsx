@@ -3,7 +3,7 @@ import Plot from "react-plotly.js";
 import { GripHorizontal, X, Download, Palette, Maximize2, Minimize2, Minus, Plus, AlertTriangle, Table2 } from "lucide-react";
 import { ParsedFile } from "../types";
 import { useQuery } from "@tanstack/react-query";
-import { fetchCycles, getExportCapabilities, exportData, ExportCapabilities } from "../api/client";
+import { fetchCycles, getExportCapabilities, exportData, exportSheets, ExportCapabilities, CycleSegment } from "../api/client";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import CVPanel from "./panels/CVPanel";
 import EISPanel from "./panels/EISPanel";
@@ -68,7 +68,7 @@ interface PanelHeaderProps extends Props {
 }
 
 function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscreen, isFullscreen, onAnalyse }: PanelHeaderProps) {
-  const { exportOne, collectOne } = useExportContext();
+  const { exportOne, collectOne, collectSheets } = useExportContext();
   const { selectedId, setSelected, panelStyles } = useStyleContext();
   const { getLabel, setLabel } = useFileLabels();
   const isSelected  = selectedId === file.id;
@@ -90,10 +90,6 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
     return () => clearTimeout(t);
   }, [showHint]);
 
-  // Read per-file settings from localStorage for origin export payload
-  const [scanRateStored] = useLocalStorage(`${file.id}.scanRate`, 10);
-  const [norm]           = useLocalStorage<"none"|"area"|"mass">(`${file.id}.norm`, "none");
-  const [normVal]        = useLocalStorage(`${file.id}.normVal`, 1.0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const etypeLabel = file.etype ? (ETYPE_LABEL[file.etype] ?? file.etype) : "Unknown";
   const etypeColor = file.etype ? (ETYPE_COLOR[file.etype] ?? "bg-forest-700/50 text-forest-400") : "bg-forest-700/50 text-forest-400";
@@ -120,26 +116,25 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
     setOriginError(null);
     setOriginExporting(true);
     try {
-      const stem     = filename || file.name.replace(/\.dta$/i, "");
-      const imDiv    = norm === "area" ? normVal : norm === "mass" ? normVal / 1000 : 1.0;
-      const normLbl  = norm === "area" ? "mA/cm²" : norm === "mass" ? "mA/g" : "mA";
-      const etype    = (file.etype === "CHRONOP" || file.etype === "PWR800_CYCLICCHARGEDISCHARGE")
+      const stem  = filename || file.name.replace(/\.dta$/i, "");
+      const etype = (file.etype === "CHRONOP" || file.etype === "PWR800_CYCLICCHARGEDISCHARGE")
         ? "GCD"
         : (file.etype as "CV" | "LSV" | "EISPOT" | "GCD");
 
-      const payload: Record<string, unknown> = { etype, filename: file.name };
+      // CV/LSV: export exactly the plotted columns the panel built (selected
+      // cycles, offset, normalisation, background) — never the full file.
       if (etype === "CV" || etype === "LSV") {
-        payload.curves       = file.curves ?? [];
-        payload.scan_rate_mv = scanRateStored;
-        payload.im_divisor   = imDiv;
-        payload.norm_label   = normLbl;
-      } else if (etype === "EISPOT") {
-        payload.eis = file.eis;
-      } else if (etype === "GCD") {
-        payload.gcd = file.gcd;
+        const sheets = collectSheets(file.id);
+        if (!sheets) throw new Error("Plot data not ready — open the panel and try again");
+        await exportSheets(sheets, stem, fmt);
+      } else {
+        // EIS/GCD single-file panels plot the whole spectrum / cycle set, so the
+        // typed payload is already what's on screen.
+        const payload: Record<string, unknown> = { etype, filename: file.name };
+        if (etype === "EISPOT") payload.eis = file.eis;
+        else                    payload.gcd = file.gcd;
+        await exportData(payload, stem, fmt);
       }
-
-      await exportData(payload, stem, fmt);
       setOpen(false);
     } catch (err) {
       setOriginError(err instanceof Error ? err.message : "Export failed");
@@ -357,36 +352,30 @@ function computeDQDV(
 
 function buildVQSegment(
   times: number[], voltages: number[], currentMA: number
-): { q: number[]; v: number[]; label: string } {
+): { q: number[]; v: number[] } {
   let cumQ = 0;
   const q = times.map((t, i) => {
     if (i > 0) cumQ += Math.abs(currentMA) * (t - times[i - 1]) / 3600; // mAh
     return cumQ;
   });
-  const rising = voltages[voltages.length - 1] > voltages[0];
-  return { q, v: voltages, label: rising ? "Charge" : "Discharge" };
+  return { q, v: voltages };
 }
 
 // The /cycles endpoint returns charge and discharge concatenated into flat
-// arrays; split at voltage direction reversals so Q restarts per half-cycle.
-function splitVQByDirection(
-  times: number[], voltages: number[], currentMA: number
+// arrays plus the index ranges of each half-cycle. Slice at those ranges and
+// take the label as ground truth (the instrument pre-split the files) rather
+// than inferring it from voltage direction.
+function segmentsFromServer(
+  data: { times: number[]; voltages: number[]; segments?: CycleSegment[] },
+  currentMA: number,
 ): Array<{ q: number[]; v: number[]; label: string }> {
-  if (times.length === 0) return [];
-  const segs: Array<{ q: number[]; v: number[]; label: string }> = [];
-  let sT: number[] = [times[0]], sV: number[] = [voltages[0]], dir = 0;
-
-  for (let i = 1; i < times.length; i++) {
-    const dv = voltages[i] - voltages[i - 1];
-    const newDir = dv > 0.001 ? 1 : dv < -0.001 ? -1 : dir;
-    if (newDir !== 0 && dir !== 0 && newDir !== dir) {
-      segs.push(buildVQSegment(sT, sV, currentMA));
-      sT = [times[i - 1]]; sV = [voltages[i - 1]];
-    }
-    dir = newDir; sT.push(times[i]); sV.push(voltages[i]);
-  }
-  if (sT.length > 1) segs.push(buildVQSegment(sT, sV, currentMA));
-  return segs;
+  if (!data.segments) return [];
+  return data.segments.map(s => {
+    const t = data.times.slice(s.start, s.end + 1);
+    const v = data.voltages.slice(s.start, s.end + 1);
+    const seg = buildVQSegment(t, v, currentMA);
+    return { ...seg, label: s.label };
+  });
 }
 
 function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
@@ -420,7 +409,7 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
 
   const vqResult = useMemo(() => {
     if (!data || view !== "vq") return null;
-    return splitVQByDirection(data.times, data.voltages, currentMA);
+    return segmentsFromServer(data, currentMA);
   }, [data, view, currentMA]);
 
   // CE for the selected cycle — requires exactly one charge and one discharge segment

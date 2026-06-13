@@ -43,4 +43,16 @@ describe("computeCE", () => {
     const r = computeCE([]);
     expect(r.ce).toBeNull();
   });
+
+  it("computes CE from noisy non-monotonic voltage when labels are authoritative", () => {
+    // Regression: the old voltage-direction splitter produced ≠2 segments for
+    // wandering voltage. With server-supplied labels, CE depends only on Q.
+    const noisyV = [3.50, 3.49, 3.52, 3.48, 3.55, 3.50, 3.58, 3.54, 3.60, 3.57];
+    const q = Array.from({ length: 10 }, (_, i) => (i + 1) / 10);
+    const charge:    VQSegment = { label: "Charge",    q, v: noisyV };
+    const discharge: VQSegment = { label: "Discharge", q: q.map(x => x * 0.95), v: [...noisyV].reverse() };
+    const r = computeCE([charge, discharge]);
+    expect(r.ce).toBeCloseTo(95.0, 3);
+    expect(r.warnings.some(w => w.includes("ambiguous"))).toBe(false);
+  });
 });

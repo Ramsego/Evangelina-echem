@@ -9,7 +9,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
-import { useExportContext, CollectResult } from "../../context/ExportContext";
+import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
 import { exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments, SummarySection } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, parseScanRateMvs, interpolateLinear, shortName, computeExtents } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -305,7 +305,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   const layout = useMemo((): Partial<Plotly.Layout> => ({
     ...styledLayout,
     uirevision,
-    dragmode: selectorMode ? (false as unknown as 'zoom') : dragmode,
+    dragmode,
     legend: {
       ...(styledLayout.legend as object ?? {}),
       font: { ...(((styledLayout.legend as { font?: object } | undefined)?.font) ?? {}), size: legendFontSize },
@@ -313,7 +313,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
     },
     ...(clamp.x && { xaxis: { ...(styledLayout.xaxis ?? {}), autorange: false as const, range: clamp.x } }),
     ...(clamp.y && { yaxis: { ...(styledLayout.yaxis ?? {}), autorange: false as const, range: clamp.y } }),
-  }), [styledLayout, uirevision, dragmode, selectorMode, legendFontSize, legendState, clamp]);
+  }), [styledLayout, uirevision, dragmode, legendFontSize, legendState, clamp]);
 
   // Only show capacitance results when the user has explicitly triggered a calculation
   const caps  = capKey > 0 ? cvQ.data?.capacitances_mf : undefined;
@@ -322,13 +322,16 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   // ── Export ───────────────────────────────────────────────────────────────
   const { register, unregister } = useExportContext();
 
-  const buildCsv = useCallback((): string => {
-    const meta: string[] = [
-      ...metaComments(file.metadata),
-      ...(norm !== "none" ? [`# Normalised by ${norm === "area" ? `area: ${normVal} cm2` : `mass: ${normVal} mg`}`] : []),
-      ...(vOffset !== 0 ? [`# Reference: ${refFrom} → ${refTo}  (offset ${vOffset >= 0 ? "+" : ""}${vOffset.toFixed(3)} V)`] : []),
-      ...(caps ? [`# Capacitance (${capVLo || "full range"} – ${capVHi || "full range"} V): ${caps.map((c: number, i: number) => `C${indices[i] + 1}=${c.toFixed(2)} mF`).join("  ")}`] : []),
-    ];
+  // Exact plotted columns — same transforms as the figure (offset, normalisation,
+  // background subtraction), so every export format reflects what's on screen.
+  const plottedColumns = useCallback((): { headers: string[]; units: string[]; rows: (number | null)[][] } => {
+    // Plotted current in mA, mirroring the plot math (CVPanel build at the
+    // selCurves loop): raw → optional background subtraction at the raw voltage.
+    const plottedMa = (c: { vf: number[]; im: number[] }, r: number, divisor: number): number | null => {
+      if (c.im[r] === undefined) return null;
+      const bg = bgCurve ? interpolateLinear(bgCurve.vf, bgCurve.im, c.vf[r]) : 0;
+      return ((c.im[r] - bg) / divisor) * 1000;
+    };
 
     const headers: string[] = [];
     const units:   string[] = [];
@@ -343,23 +346,39 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
     });
 
     const maxLen = Math.max(...selCurves.map(c => c.vf.length));
-    const dataRows: string[] = [];
+    const rows: (number | null)[][] = [];
     for (let r = 0; r < maxLen; r++) {
-      const row: string[] = [];
-      selCurves.forEach((c, idx) => {
+      const row: (number | null)[] = [];
+      selCurves.forEach(c => {
         row.push(
-          c.vf[r] !== undefined ? (c.vf[r] + vOffset).toFixed(6) : "",
-          c.im[r] !== undefined ? (c.im[r] * 1000).toFixed(6)    : "",
+          c.vf[r] !== undefined ? c.vf[r] + vOffset : null,
+          plottedMa(c, r, 1),
         );
-        if (norm !== "none") {
-          row.push(c.im[r] !== undefined ? ((c.im[r] / imDivisor) * 1000).toFixed(6) : "");
-        }
-        void idx;
+        if (norm !== "none") row.push(plottedMa(c, r, imDivisor));
       });
-      dataRows.push(row.join(","));
+      rows.push(row);
     }
+    return { headers, units, rows };
+  }, [selCurves, indices, vOffset, imDivisor, norm, bgCurve]);
+
+  const buildCsv = useCallback((): string => {
+    const bgName = bgFileId && allFiles ? allFiles.find(f => f.id === bgFileId)?.name : null;
+    const meta: string[] = [
+      ...metaComments(file.metadata),
+      ...(norm !== "none" ? [`# Normalised by ${norm === "area" ? `area: ${normVal} cm2` : `mass: ${normVal} mg`}`] : []),
+      ...(vOffset !== 0 ? [`# Reference: ${refFrom} → ${refTo}  (offset ${vOffset >= 0 ? "+" : ""}${vOffset.toFixed(3)} V)`] : []),
+      ...(bgName ? [`# Background subtracted: ${bgName}`] : []),
+      ...(caps ? [`# Capacitance (${capVLo || "full range"} – ${capVHi || "full range"} V): ${caps.map((c: number, i: number) => `C${indices[i] + 1}=${c.toFixed(2)} mF`).join("  ")}`] : []),
+    ];
+    const { headers, units, rows } = plottedColumns();
+    const dataRows = rows.map(row => row.map(v => (v === null ? "" : v.toFixed(6))).join(","));
     return [...meta, headers.join(","), units.join(","), ...dataRows].join("\n");
-  }, [selCurves, indices, vOffset, imDivisor, norm, normVal, caps, capVLo, capVHi, file.metadata]);
+  }, [plottedColumns, norm, normVal, vOffset, refFrom, refTo, caps, capVLo, capVHi, indices, file.metadata, bgFileId, allFiles]);
+
+  const buildSheets = useCallback((): ExportSheet[] => {
+    const { headers, units, rows } = plottedColumns();
+    return [{ name: "Plotted", headers, units, rows }];
+  }, [plottedColumns]);
 
   const buildTxt = useCallback((): string => {
     const sections: SummarySection[] = [];
@@ -439,6 +458,8 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
 
   const handleExportRef = useRef<(fmt: string) => void>(() => {});
   const collectRef = useRef<() => CollectResult>(() => ({ filename: '', csv: '', plotData: [], layout: {} }));
+  const sheetsRef = useRef<() => ExportSheet[]>(() => []);
+  sheetsRef.current = buildSheets;
 
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
@@ -454,7 +475,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   });
 
   useEffect(() => {
-    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(file.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 

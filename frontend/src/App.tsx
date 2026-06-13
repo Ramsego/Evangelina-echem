@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { FlaskConical } from "lucide-react";
 import { ParsedFile, ComparisonSession, AnalysisSession } from "./types";
 import { fetchCVCurves, deleteFile } from "./api/client";
 import LandingPage from "./components/LandingPage";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
+import { useIsSmallScreen } from "./hooks/useIsSmallScreen";
 import { StyleProvider } from "./context/StyleContext";
 import { ExportProvider } from "./context/ExportContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -104,10 +106,21 @@ export default function App() {
   const addAnalysis = (a: AnalysisSession) => setAnalyses((prev) => prev.some(x => x.id === a.id) ? prev : [...prev, a]);
   const removeAnalysis = (id: string) => setAnalyses((prev) => prev.filter((a) => a.id !== id));
 
+  const isSmall = useIsSmallScreen();
+
   return (
     <ThemeProvider>
       {files.length === 0 ? (
         <LandingPage onFilesAdded={addFiles} />
+      ) : isSmall ? (
+        <div className="min-h-screen bg-forest-900 flex flex-col items-center justify-center px-8 text-center gap-4">
+          <FlaskConical size={40} className="text-forest-400" />
+          <h1 className="text-xl font-semibold text-forest-100">{APP_NAME}</h1>
+          <p className="text-sm text-forest-300 max-w-xs leading-relaxed">
+            The analysis dashboard is built for a larger screen. Open this on a
+            desktop or tablet to drag, arrange, and export plots.
+          </p>
+        </div>
       ) : (
         <FileLabelProvider>
           <ExportProvider>

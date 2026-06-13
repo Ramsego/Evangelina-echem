@@ -9,7 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 import gamry_parser as gp_parser
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from limiter import limiter
 
 from gamry_plotter.data import (
@@ -97,7 +97,7 @@ def _cv_get(file_id: str) -> list | None:
     return _cache_get(_cv_store, file_id)
 
 
-_CYCLE_PAT = re.compile(r"^(charge|discharge)[_\s]?#?\d+\.dta$", re.IGNORECASE)
+_CYCLE_PAT = re.compile(r"^(charge|discharge)[_\s#]*\d+\.dta$", re.IGNORECASE)
 
 
 def _ser(val: Any) -> Any:
@@ -234,7 +234,7 @@ def _parse_cycle_group(files: list[tuple[str, bytes]], tmp_path: Path) -> dict |
 
 @router.post("/upload")
 @limiter.limit("30/minute")
-async def upload(request: Request, files: list[UploadFile]) -> list[dict]:
+async def upload(request: Request, files: list[UploadFile] = File(...)) -> list[dict]:
     if not UPLOADS_ENABLED:
         raise HTTPException(503, "Uploads are currently disabled")
     if len(files) > _MAX_FILES:
@@ -372,7 +372,9 @@ def get_cycles(request: Request, file_id: str, start: int = 1, end: int = 10) ->
 
     times: list[float] = []
     voltages: list[float] = []
+    segments: list[dict] = []
     cumulative = 0.0
+    idx = 0
 
     for c in range(start, end + 1):
         if c not in cycle_data:
@@ -381,11 +383,14 @@ def get_cycles(request: Request, file_id: str, start: int = 1, end: int = 10) ->
             t, v = cycle_data[c][step]
             if not t:
                 continue
+            seg_start = idx
             times.extend(x + cumulative for x in t)
             voltages.extend(v)
+            idx += len(t)
             cumulative += max(t)
+            segments.append({"label": step.capitalize(), "cycle": c, "start": seg_start, "end": idx - 1})
 
-    return {"times": times, "voltages": voltages, "start": start, "end": end}
+    return {"times": times, "voltages": voltages, "segments": segments, "start": start, "end": end}
 
 
 @router.delete("/files/{file_id}")

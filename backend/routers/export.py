@@ -59,10 +59,20 @@ class GCDData(BaseModel):
     ch_energy_mwh:   dict[str, float] | None = None
 
 
+class Sheet(BaseModel):
+    """A pre-built table the frontend hands over verbatim — the exact plotted
+    columns, so no transform math is re-derived on the backend."""
+    name:    str
+    headers: list[str]
+    units:   list[str] | None = None
+    rows:    list[list[float | str | None]]
+
+
 class ExportRequest(BaseModel):
     format:       Literal["xlsx", "csv", "opju"]
-    etype:        Literal["CV", "LSV", "EISPOT", "GCD"]
+    etype:        Literal["CV", "LSV", "EISPOT", "GCD"] | None = None
     filename:     str                           = Field(max_length=200)
+    sheets:       list[Sheet]   | None = None
     curves:       list[Curve]   | None = None
     scan_rate_mv: float         | None = None
     v_offset:     float         | None = None
@@ -77,6 +87,12 @@ class ExportRequest(BaseModel):
         if v is not None and len(v) > _MAX_CURVES:
             raise ValueError(f"exceeds {_MAX_CURVES}-curve limit")
         return v
+
+    @model_validator(mode="after")
+    def _require_etype_without_sheets(self) -> "ExportRequest":
+        if self.sheets is None and self.etype is None:
+            raise ValueError("etype is required when sheets is not provided")
+        return self
 
 
 # ── Origin detection ──────────────────────────────────────────────────────────
@@ -118,8 +134,12 @@ def export_data(req: ExportRequest):
         return _export_opju(req, stem)
 
     if req.format == "xlsx":
+        if req.sheets:
+            return _export_xlsx_sheets(req.sheets, stem)
         return _export_xlsx(req, stem)
 
+    if req.sheets:
+        return _export_csv_sheets(req.sheets, stem)
     return _export_csv(req, stem)
 
 
@@ -132,6 +152,32 @@ def _export_opju(req: ExportRequest, stem: str):
     tmp.close()
 
     op.new()
+
+    if req.sheets:
+        # Plotted-only path: the frontend hands over the exact figure columns.
+        # CV/LSV sheets are interleaved E/i pairs, so plot each odd column vs the
+        # even column before it — mirrors the typed-curve graph loop below.
+        sheet = req.sheets[0]
+        wks   = op.new_sheet("w", lname=sheet.name[:31])
+        cols  = list(zip(*sheet.rows)) if sheet.rows else [[] for _ in sheet.headers]
+        for c, header in enumerate(sheet.headers):
+            unit = sheet.units[c] if sheet.units and c < len(sheet.units) else ""
+            wks.from_list(c, list(cols[c]) if c < len(cols) else [], lname=header, units=unit)
+
+        gr    = op.new_graph(template="LINE")
+        layer = gr[0]
+        for c in range(1, len(sheet.headers), 2):
+            layer.add_plot(wks, coly=c, colx=c - 1)
+        layer.set_xlim(auto=True)
+        gr.lname = f"{stem}"
+
+        op.save(tmp.name)
+        return FileResponse(
+            tmp.name,
+            media_type="application/octet-stream",
+            filename=f"{stem}_origin.opju",
+            background=_cleanup(tmp.name),
+        )
 
     if req.etype in ("CV", "LSV") and req.curves:
         wks = op.new_sheet("w", lname="Curves")
@@ -216,6 +262,53 @@ def _export_opju(req: ExportRequest, stem: str):
         media_type="application/octet-stream",
         filename=f"{stem}_origin.opju",
         background=_cleanup(tmp.name),
+    )
+
+
+# ── Generic sheets builders (plotted-only, columns handed over verbatim) ──────
+
+def _export_xlsx_sheets(sheets: list[Sheet], stem: str):
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # remove default empty sheet
+    for sheet in sheets:
+        ws = wb.create_sheet(sheet.name[:31])  # Excel caps sheet names at 31 chars
+        ws.append(sheet.headers)
+        if sheet.units is not None:
+            ws.append(sheet.units)
+        for row in sheet.rows:
+            ws.append(row)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{stem}.xlsx"'},
+    )
+
+
+def _export_csv_sheets(sheets: list[Sheet], stem: str):
+    buf = io.StringIO()
+    w   = csv.writer(buf)
+    for i, sheet in enumerate(sheets):
+        if i > 0:
+            w.writerow([])
+        if len(sheets) > 1:
+            w.writerow([f"# === {sheet.name} ==="])
+        w.writerow(sheet.headers)
+        if sheet.units is not None:
+            w.writerow(sheet.units)
+        for row in sheet.rows:
+            w.writerow(row)
+
+    content = buf.getvalue().encode("utf-8")
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'},
     )
 
 

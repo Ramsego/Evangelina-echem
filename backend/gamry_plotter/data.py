@@ -415,7 +415,7 @@ def organize_gcd_files(folder_path: Path) -> dict:
     all_files = list(Path(folder_path).glob("*.[dD][tT][aA]"))
 
     for f in all_files:
-        match = re.search(r'#(\d+)', f.name)
+        match = re.search(r'#?(\d+)', f.name)
         if not match:
             continue
 

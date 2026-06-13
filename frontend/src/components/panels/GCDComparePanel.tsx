@@ -6,7 +6,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
-import { useExportContext, CollectResult } from "../../context/ExportContext";
+import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
 import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -47,13 +47,14 @@ export default function GCDComparePanel({ comparison, files }: Props) {
   const { register, unregister } = useExportContext();
   const handleExportRef = useRef<(fmt: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
+  const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${norm}`;
   const { onRelayout: zoomOnRelayout, legendState, hasZoom, getRangeSnapshot } = useZoom(uiRevKey);
   const [plotRef, plotSize] = useContainerSize();
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -109,28 +110,44 @@ export default function GCDComparePanel({ comparison, files }: Props) {
     ...(clamp.y && { yaxis: { ...(styledLayout.yaxis ?? {}), autorange: false as const, range: clamp.y } }),
   }), [styledLayout, uirevision, dragmode, legendFontSize, legendState, clamp]);
 
-  function buildCsv(): string {
+  // Plotted capacity in display units — mirrors the plot's normalisation (lines 74-76).
+  const capUnit = norm === "area" ? "mAh/cm2" : norm === "mass" ? "mAh/g" : "mAh";
+  const plottedCap = (rawCoulombs: number): number => {
+    const mah = (rawCoulombs / 3600) * 1000;
+    return norm === "area" ? mah / normVal : norm === "mass" ? mah / (normVal / 1000) : mah;
+  };
+
+  function plottedColumns(): { headers: string[]; units: string[]; rows: (number | null)[][] } {
     const visibleFiles = gcdFiles.filter(f => visible[f.id] !== false);
     const headers: string[] = [];
     const units:   string[] = [];
     visibleFiles.forEach(f => {
       const n = getLabel(f.id, f.name);
-      headers.push(`Cycle_${n}`, `DisMah_${n}`);
-      units.push("", "mAh");
+      headers.push(`Cycle_${n}`, `DisCap_${n}`);
+      units.push("", capUnit);
     });
     const maxLen = Math.max(0, ...visibleFiles.map(f => f.gcd!.cycles.length));
-    const rows: string[] = [];
+    const rows: (number | null)[][] = [];
     for (let i = 0; i < maxLen; i++) {
       const row = visibleFiles.flatMap(f => {
-        const gcd    = f.gcd!;
-        const disMah = gcd.discharge_caps[i] != null
-          ? ((gcd.discharge_caps[i] / 3600) * 1000).toFixed(6)
-          : "";
-        return [gcd.cycles[i]?.toString() ?? "", disMah];
+        const gcd = f.gcd!;
+        const cap = gcd.discharge_caps[i] != null ? plottedCap(gcd.discharge_caps[i]) : null;
+        return [gcd.cycles[i] ?? null, cap];
       });
-      rows.push(row.join(","));
+      rows.push(row);
     }
-    return [headers.join(","), units.join(","), ...rows].join("\n");
+    return { headers, units, rows };
+  }
+
+  function buildCsv(): string {
+    const { headers, units, rows } = plottedColumns();
+    const dataRows = rows.map(row => row.map(v => (v === null ? "" : v.toString())).join(","));
+    return [headers.join(","), units.join(","), ...dataRows].join("\n");
+  }
+
+  function buildSheets(): ExportSheet[] {
+    const { headers, units, rows } = plottedColumns();
+    return [{ name: "Plotted", headers, units, rows }];
   }
 
   handleExportRef.current = (fmt: string) => {
@@ -143,6 +160,7 @@ export default function GCDComparePanel({ comparison, files }: Props) {
     plotData: styledData,
     layout,
   });
+  sheetsRef.current = buildSheets;
 
   function handleRestyle(data: Record<string, unknown>[], indices?: number[]) {
     if (!data?.[0] || !("name" in data[0]) || !indices) return;

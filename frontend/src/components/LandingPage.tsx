@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
 import { FlaskConical, Upload, Loader2 } from "lucide-react";
@@ -24,9 +24,22 @@ export default function LandingPage({ onFilesAdded }: Props) {
   });
 
   const onDrop = useCallback(
-    (accepted: File[]) => {
+    async (accepted: File[]) => {
+      setDropError(null);
       const dta = accepted.filter((f) => f.name.toLowerCase().endsWith(".dta"));
-      if (dta.length) uploadMut.mutate(dta);
+      if (!dta.length) {
+        setDropError("No .dta files found. Drop Gamry .dta files to continue.");
+        return;
+      }
+      try {
+        await Promise.all(dta.map((f) => f.slice(0, 1).arrayBuffer()));
+      } catch {
+        setDropError(
+          "One or more files could not be read. If they are stored in OneDrive, iCloud, or Google Drive, make them available offline first."
+        );
+        return;
+      }
+      uploadMut.mutate(dta);
     },
     [uploadMut]
   );
@@ -37,8 +50,18 @@ export default function LandingPage({ onFilesAdded }: Props) {
     multiple: true,
   });
 
+  const [dropError, setDropError] = useState<string | null>(null);
+  const [slowLoad, setSlowLoad] = useState(false);
   const busy = uploadMut.isPending || sampleMut.isPending;
   const sampleBusy = sampleMut.isPending;
+
+  // Free-tier backends sleep after idle and take 30–60s to wake. If a request
+  // stays pending past 4s, reassure the user it's waking up rather than broken.
+  useEffect(() => {
+    if (!busy) { setSlowLoad(false); return; }
+    const t = setTimeout(() => setSlowLoad(true), 4000);
+    return () => clearTimeout(t);
+  }, [busy]);
 
   return (
     <div className="min-h-screen bg-forest-900 flex flex-col items-center justify-center px-6 py-16"
@@ -81,11 +104,14 @@ export default function LandingPage({ onFilesAdded }: Props) {
         {sampleBusy
           ? <Loader2 size={18} className="animate-spin" />
           : <FlaskConical size={18} />}
-        {sampleBusy ? "Loading sample data…" : "Try with sample data"}
+        {sampleBusy
+          ? (slowLoad ? "Waking up the server — first load can take up to a minute…" : "Loading sample data…")
+          : "Try with sample data"}
       </button>
       {sampleMut.isError && (
         <p className="text-xs text-red-400 mt-2 max-w-md text-center">
           {(sampleMut.error as Error).message}
+          {" "}If this is the first visit in a while, the free-tier server may still be waking — try again in a moment.
         </p>
       )}
 
@@ -121,7 +147,15 @@ export default function LandingPage({ onFilesAdded }: Props) {
             Supports CV, LSV, EIS, and GCD experiment types
           </p>
         )}
-        {uploadMut.isError && (
+        {dropError && (
+          <p className="text-xs text-red-400 mt-1 text-center">{dropError}</p>
+        )}
+        {!dropError && uploadMut.isPending && slowLoad && (
+          <p className="text-xs text-forest-400 mt-1 text-center">
+            Waking up the server — first load can take up to a minute…
+          </p>
+        )}
+        {!dropError && uploadMut.isError && (
           <p className="text-xs text-red-400 mt-1">
             {(uploadMut.error as Error).message}
           </p>
