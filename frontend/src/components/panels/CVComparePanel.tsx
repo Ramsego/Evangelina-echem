@@ -200,7 +200,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
 
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
-    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg");
+    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: comparison.name,

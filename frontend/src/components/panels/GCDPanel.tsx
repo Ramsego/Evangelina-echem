@@ -421,7 +421,7 @@ export default function GCDPanel({ file }: Props) {
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
     if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledData, finalLayout, file.name, fmt as "png" | "svg");
+    exportPlotImage(styledData, finalLayout, file.name, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),

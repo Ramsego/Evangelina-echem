@@ -144,7 +144,7 @@ export default function EISComparePanel({ comparison, files }: Props) {
     const rawLay: Partial<Plotly.Layout> = view === "nyquist"
       ? {
           ...LAYOUT_BASE,
-          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: xTitleOverride || "Z′ (Ω)",  font: { color: "#74C69D" } }, ...axisOverride(xMin, xMax, xLog) },
+          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: xTitleOverride || "Z′ (Ω)",  font: { color: "#74C69D" } }, scaleanchor: "y" as const, scaleratio: 1, ...axisOverride(xMin, xMax, xLog) },
           yaxis: { ...LAYOUT_BASE.yaxis, title: { text: yTitleOverride || "−Z″ (Ω)", font: { color: "#74C69D" } }, ...axisOverride(yMin, yMax, yLog) },
         }
       : {
@@ -248,7 +248,7 @@ export default function EISComparePanel({ comparison, files }: Props) {
 
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
-    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg");
+    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg", style.exportShape);
   };
   sheetsRef.current = buildSheets;
   collectRef.current = () => ({

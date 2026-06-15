@@ -230,7 +230,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
       } else {
         const entries = collectAll();
         const defaultName = files[0]?.name.replace(/\.dta$/i, '') ?? "export";
-        await buildZip(entries, fmtList, zipName || defaultName);
+        await buildZip(entries, fmtList, zipName || defaultName, globalStyle.exportShape);
       }
     } finally {
       setIsExporting(false);
@@ -681,6 +681,12 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
                   </Row>
                   <Row label="Border">
                     <input type="checkbox" checked={editingStyle.showBorder} onChange={e => set("showBorder", e.target.checked)} className="accent-forest-600" />
+                  </Row>
+                  <Row label="Export shape">
+                    <select value={editingStyle.exportShape} onChange={e => set("exportShape", e.target.value as StyleSettings["exportShape"])} className={CTL + " flex-1"}>
+                      <option value="wide">Wide (4:3)</option>
+                      <option value="square">Square (1:1)</option>
+                    </select>
                   </Row>
                 </div>
               )}

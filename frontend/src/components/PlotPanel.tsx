@@ -70,6 +70,7 @@ interface PanelHeaderProps extends Props {
 function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscreen, isFullscreen, onAnalyse }: PanelHeaderProps) {
   const { exportOne, collectOne, collectSheets } = useExportContext();
   const { selectedId, setSelected, panelStyles } = useStyleContext();
+  const headerStyle = useStyle(file.id);
   const { getLabel, setLabel } = useFileLabels();
   const isSelected  = selectedId === file.id;
   const hasOverride = !!panelStyles[file.id];
@@ -152,7 +153,7 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
         exportOne(file.id, fmtList[0]);
       } else {
         const entry = collectOne(file.id);
-        if (entry) await buildZip([entry], fmtList, filename || file.name.replace(/\.dta$/i, ''));
+        if (entry) await buildZip([entry], fmtList, filename || file.name.replace(/\.dta$/i, ''), headerStyle.exportShape);
       }
     } finally {
       setExporting(false);

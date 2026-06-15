@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { GripHorizontal, X, Download, Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { ParsedFile, ComparisonSession } from "../types";
 import { useExportContext, ExportFmt } from "../context/ExportContext";
+import { useStyle } from "../context/StyleContext";
 import { buildZip } from "../utils/exportUtils";
 import CVComparePanel  from "./panels/CVComparePanel";
 import EISComparePanel from "./panels/EISComparePanel";
@@ -31,6 +32,7 @@ interface HeaderProps {
 
 function ComparisonHeader({ comparison, onRemove, isCollapsed, onToggleCollapse, onFullscreen, isFullscreen, onRename }: HeaderProps) {
   const { exportOne, collectOne } = useExportContext();
+  const style = useStyle();
   const [open,      setOpen]      = useState(false);
   const [fmts,      setFmts]      = useState<Set<ExportFmt>>(new Set());
   const [filename,  setFilename]  = useState(comparison.name);
@@ -64,7 +66,7 @@ function ComparisonHeader({ comparison, onRemove, isCollapsed, onToggleCollapse,
         exportOne(comparison.id, fmtList[0]);
       } else {
         const entry = collectOne(comparison.id);
-        if (entry) await buildZip([entry], fmtList, filename || comparison.name);
+        if (entry) await buildZip([entry], fmtList, filename || comparison.name, style.exportShape);
       }
     } finally {
       setExporting(false);

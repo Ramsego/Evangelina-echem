@@ -33,6 +33,8 @@ export interface StyleSettings {
   legendFontSizeMode: "auto" | "manual";
   legendFontSize:     number;
   legendBelow:        boolean;
+  // Export
+  exportShape:        "wide" | "square";  // exported figure aspect; on-screen unaffected
 }
 
 export const PALETTES: Record<string, string[]> = {
@@ -76,6 +78,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#0D1C14", showBorder: false,
     fontFamily: "Inter", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+    exportShape: "wide",
   },
   "Default": {
     framework: "Default", colorScheme: "Default",
@@ -86,6 +89,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FFFFFF", showBorder: false,
     fontFamily: "Inter", fontSizeBody: 12, fontSizeTitle: 14, axisLabelFontSize: 13,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+    exportShape: "wide",
   },
   "Electrochemistry": {
     framework: "Electrochemistry", colorScheme: "Electrochemistry",
@@ -96,6 +100,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FFFFFF", showBorder: true,
     fontFamily: "Arial", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+    exportShape: "wide",
   },
   "ACS Publication": {
     framework: "ACS Publication", colorScheme: "Default",
@@ -106,6 +111,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FFFFFF", showBorder: true,
     fontFamily: "Arial", fontSizeBody: 10, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 10, legendBelow: false,
+    exportShape: "wide",
   },
   "Nature / Science": {
     framework: "Nature / Science", colorScheme: "Colorblind-safe",
@@ -116,6 +122,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FFFFFF", showBorder: true,
     fontFamily: "Helvetica", fontSizeBody: 10, fontSizeTitle: 12, axisLabelFontSize: 11,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 10, legendBelow: false,
+    exportShape: "wide",
   },
   "Presentation": {
     framework: "Presentation", colorScheme: "Default",
@@ -126,6 +133,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FFFFFF", showBorder: false,
     fontFamily: "Arial", fontSizeBody: 14, fontSizeTitle: 18, axisLabelFontSize: 16,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 13, legendBelow: false,
+    exportShape: "wide",
   },
   "Minimal": {
     framework: "Minimal", colorScheme: "Colorblind-safe",
@@ -136,6 +144,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#FAFAFA", showBorder: false,
     fontFamily: "Helvetica", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+    exportShape: "wide",
   },
   "Blade": {
     framework: "Blade", colorScheme: "Blade",
@@ -146,6 +155,7 @@ export const FRAMEWORKS: Record<string, StyleSettings> = {
     plotBgColor: "#0e0a15", showBorder: false,
     fontFamily: "Inter", fontSizeBody: 11, fontSizeTitle: 13, axisLabelFontSize: 12,
     showLegend: true, legendX: 1, legendY: 1, legendOrientation: "v", legendFontSizeMode: "auto", legendFontSize: 11, legendBelow: false,
+    exportShape: "wide",
   },
 };
 

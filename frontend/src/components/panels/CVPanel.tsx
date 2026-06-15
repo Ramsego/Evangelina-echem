@@ -464,7 +464,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
     if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledData, layout, file.name, fmt as "png" | "svg");
+    exportPlotImage(styledData, layout, file.name, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),

@@ -12,26 +12,49 @@ async function getPlotly() {
   return P.default ?? P;
 }
 
+export type ExportShape = "wide" | "square";
+
+// LAYOUT_BASE default margins; kept in sync with utils/plotUtils.ts.
+const DEFAULT_MARGIN = { l: 56, r: 16, t: 10, b: 48 };
+// Side of the square plotting box (excluding margins), for "square" exports.
+const SQUARE_BOX = 900;
+
+/**
+ * Export dimensions for the figure. "wide" keeps the classic 1200×900 (4:3).
+ * "square" sizes the image so the *framed data box* is exactly square — what
+ * publications mean by a square plot — by adding the layout's margins around a
+ * fixed square box, independent of axis-label widths.
+ */
+function exportDims(shape: ExportShape, layout: Partial<Plotly.Layout>): { width: number; height: number } {
+  if (shape !== "square") return { width: 1200, height: 900 };
+  const m = (layout.margin ?? {}) as { l?: number; r?: number; t?: number; b?: number };
+  const l = m.l ?? DEFAULT_MARGIN.l, r = m.r ?? DEFAULT_MARGIN.r;
+  const t = m.t ?? DEFAULT_MARGIN.t, b = m.b ?? DEFAULT_MARGIN.b;
+  return { width: SQUARE_BOX + l + r, height: SQUARE_BOX + t + b };
+}
+
 /** Render plot offscreen and return a data-URL string (PNG base64 or SVG). */
 export async function exportPlotImageData(
   data: Plotly.Data[],
   layout: Partial<Plotly.Layout>,
   format: "png" | "svg",
+  shape: ExportShape = "wide",
 ): Promise<string> {
   const Plotly = await getPlotly();
+  const { width, height } = exportDims(shape, layout);
   const div = document.createElement("div");
   div.style.cssText =
-    "position:fixed;top:-9999px;left:-9999px;width:1200px;height:900px;visibility:hidden;";
+    `position:fixed;top:-9999px;left:-9999px;width:${width}px;height:${height}px;visibility:hidden;`;
   document.body.appendChild(div);
   try {
     const exportLayout = {
       ...layout,
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor:  "rgba(0,0,0,0)",
-      width: 1200, height: 900,
+      width, height,
     };
     const plotDiv = await Plotly.newPlot(div, data, exportLayout, { staticPlot: true });
-    return await Plotly.toImage(plotDiv, { format, width: 1200, height: 900 });
+    return await Plotly.toImage(plotDiv, { format, width, height });
   } finally {
     try { Plotly.purge(div); } catch { /* ignore */ }
     document.body.removeChild(div);
@@ -44,24 +67,26 @@ export async function exportPlotImage(
   layout: Partial<Plotly.Layout>,
   filename: string,
   format: "png" | "svg",
+  shape: ExportShape = "wide",
 ): Promise<void> {
   const Plotly = await getPlotly();
+  const { width, height } = exportDims(shape, layout);
   const div = document.createElement("div");
   div.style.cssText =
-    "position:fixed;top:-9999px;left:-9999px;width:1200px;height:900px;visibility:hidden;";
+    `position:fixed;top:-9999px;left:-9999px;width:${width}px;height:${height}px;visibility:hidden;`;
   document.body.appendChild(div);
   try {
     const exportLayout = {
       ...layout,
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor:  "rgba(0,0,0,0)",
-      width: 1200, height: 900,
+      width, height,
     };
     const plotDiv = await Plotly.newPlot(div, data, exportLayout, { staticPlot: true });
     await Plotly.downloadImage(plotDiv, {
       format,
       filename: sanitize(filename),
-      width: 1200, height: 900,
+      width, height,
     });
   } finally {
     try { Plotly.purge(div); } catch { /* ignore */ }
@@ -138,7 +163,8 @@ export function buildSummaryTxt(
 export async function buildZip(
   entries: CollectResult[],
   fmts:    Array<"png" | "svg" | "csv" | "txt">,
-  zipName: string
+  zipName: string,
+  shape:   ExportShape = "wide",
 ): Promise<void> {
   const JSZip = (await import("jszip")).default;
   const zip   = new JSZip();
@@ -152,7 +178,7 @@ export async function buildZip(
         } else if (fmt === "txt") {
           if (txt) zip.file(`${base}_summary.txt`, txt);
         } else {
-          const dataUrl = await exportPlotImageData(plotData, layout, fmt);
+          const dataUrl = await exportPlotImageData(plotData, layout, fmt, shape);
           if (fmt === "svg") {
             const svgText = decodeURIComponent(dataUrl.split(",")[1] ?? dataUrl);
             zip.file(`${base}.svg`, svgText);

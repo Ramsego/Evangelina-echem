@@ -105,7 +105,6 @@ export default function EISPanel({ file }: Props) {
 
   const { plotData, rawLayout } = useMemo((): { plotData: Plotly.Data[]; rawLayout: Partial<Plotly.Layout> } => {
     if (!eis) return { plotData: [], rawLayout: { ...LAYOUT_BASE } };
-    const hasCustomRange = xMin !== "" || xMax !== "" || yMin !== "" || yMax !== "";
     const data: Plotly.Data[] = [];
     let layout: Partial<Plotly.Layout> = { ...LAYOUT_BASE };
 
@@ -134,7 +133,9 @@ export default function EISPanel({ file }: Props) {
           ...LAYOUT_BASE.xaxis,
           title: { text: xTitleOverride || "Z′ (Ω)", font: { color: "#74C69D" } },
           range: [0, limit],
-          ...(!hasCustomRange ? { scaleanchor: "y" as const, scaleratio: 1 } : {}),
+          // Always equal-scaled so impedance arcs are never distorted, even
+          // when a manual axis range is set.
+          scaleanchor: "y" as const, scaleratio: 1,
           ...axisOverride(xMin, xMax, xLog),
         },
         yaxis: {
@@ -324,7 +325,7 @@ export default function EISPanel({ file }: Props) {
   handleExportRef.current = (fmt: string) => {
     if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
     if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledPlotData, finalLayout, file.name, fmt as "png" | "svg");
+    exportPlotImage(styledPlotData, finalLayout, file.name, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),

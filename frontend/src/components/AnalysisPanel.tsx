@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { GripHorizontal, X, Download, Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { ParsedFile, AnalysisSession } from "../types";
 import { useExportContext } from "../context/ExportContext";
+import { useStyle } from "../context/StyleContext";
 import { exportSheets } from "../api/client";
 import { downloadCsv, exportPlotImage } from "../utils/exportUtils";
 import CVAnalysisPanel, { CVAnalysisPlots, MetricRow } from "./panels/CVAnalysisPanel";
@@ -48,6 +49,7 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
   const getMetricRowsRef = useRef<() => MetricRow[]>(() => []);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy,     setBusy]     = useState(false);
+  const style = useStyle(session.fileId);
   const menuRef = useRef<HTMLDivElement>(null);
   const { register, unregister } = useExportContext();
 
@@ -62,8 +64,8 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
       const plots = getPlotRef.current();
       const f = fmt as "png" | "svg";
       const base = session.name.replace(/\.dta$/i, "");
-      if (plots.dunn) exportPlotImage(plots.dunn.data, plots.dunn.layout, `${base}_dunn`, f);
-      plots.sr.forEach(p => exportPlotImage(p.data, p.layout, `${base}_${p.name}`, f));
+      if (plots.dunn) exportPlotImage(plots.dunn.data, plots.dunn.layout, `${base}_dunn`, f, style.exportShape);
+      plots.sr.forEach(p => exportPlotImage(p.data, p.layout, `${base}_${p.name}`, f, style.exportShape));
     }
   };
 
@@ -138,8 +140,8 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
 
   function exportSubPlots() {
     const plots = getPlotRef.current();
-    if (plots.dunn) exportPlotImage(plots.dunn.data, plots.dunn.layout, `${base}_dunn`, "png");
-    plots.sr.forEach(p => exportPlotImage(p.data, p.layout, `${base}_${p.name}`, "png"));
+    if (plots.dunn) exportPlotImage(plots.dunn.data, plots.dunn.layout, `${base}_dunn`, "png", style.exportShape);
+    plots.sr.forEach(p => exportPlotImage(p.data, p.layout, `${base}_${p.name}`, "png", style.exportShape));
   }
   const hasSubPlots = () => { const p = getPlotRef.current(); return !!p.dunn || p.sr.length > 0; };
 
