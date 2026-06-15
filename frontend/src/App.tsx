@@ -12,7 +12,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { FileLabelProvider } from "./context/FileLabelContext";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { DEFAULT_STYLE, StyleSettings } from "./styles/styleTypes";
-import { APP_NAME } from "./constants";
+import { APP_NAME, APP_SUBTITLE } from "./constants";
 
 const SESSION_KEY = "gamry-session-v1";
 
@@ -23,7 +23,7 @@ export default function App() {
   const [rawStyle, setStyle] = useLocalStorage<StyleSettings>("app.style", DEFAULT_STYLE);
   const style = useMemo(() => ({ ...DEFAULT_STYLE, ...rawStyle }), [rawStyle]);
 
-  useEffect(() => { document.title = APP_NAME; }, []);
+  useEffect(() => { document.title = `${APP_NAME} — ${APP_SUBTITLE}`; }, []);
 
   // Restore session on first mount
   const restored = useRef(false);

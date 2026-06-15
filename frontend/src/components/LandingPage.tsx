@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { FlaskConical, Upload, Loader2 } from "lucide-react";
 import { ParsedFile } from "../types";
 import { uploadFiles, fetchSample } from "../api/client";
-import { APP_NAME } from "../constants";
+import { APP_NAME, APP_SUBTITLE } from "../constants";
 import clsx from "clsx";
 import CVRibbonHero from "./CVRibbonHero";
 
@@ -77,17 +77,19 @@ export default function LandingPage({ onFilesAdded }: Props) {
         <CVRibbonHero />
       </div>
 
-      {/* Logo + name */}
-      <div className="flex items-center gap-3 mb-4">
-        <FlaskConical size={28} className="text-forest-400" />
-        <span className="text-2xl font-semibold text-forest-100 tracking-tight">
+      {/* Name + subtitle — grouped identity block, set apart from the rest */}
+      <div className="flex flex-col items-center mb-12">
+        <h1 className="eva-title text-5xl sm:text-6xl font-bold tracking-tight leading-none mb-2 text-center">
           {APP_NAME}
-        </span>
+        </h1>
+        <p className="text-forest-400 text-xs uppercase tracking-[0.2em] text-center">
+          {APP_SUBTITLE}
+        </p>
       </div>
 
       {/* Tagline */}
       <p className="text-forest-400 text-base mb-8 text-center max-w-md">
-        Electrochemical data analysis — drag, arrange, and compare plots freely.
+        Turn raw Gamry files into publication-ready plots in minutes — drag, arrange, and compare freely.
       </p>
 
       {/* Primary CTA — try the app instantly with bundled sample data */}

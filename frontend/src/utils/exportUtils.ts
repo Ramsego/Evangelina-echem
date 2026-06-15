@@ -1,4 +1,5 @@
 import type { CollectResult } from "../context/ExportContext";
+import { APP_NAME } from "../constants";
 
 function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -141,7 +142,7 @@ export function buildSummaryTxt(
   llmPrompt:  string,
 ): string {
   const out: string[] = [
-    "EChem Studio — Analysis Summary",
+    `${APP_NAME} — Analysis Summary`,
     "================================",
     `File: ${fileName}  |  Type: ${etypeLabel}  |  Exported: ${new Date().toISOString().slice(0, 10)}`,
     "",
