@@ -1,4 +1,4 @@
-# EChem Studio
+# EVA — Electrochemical Visualization & Analysis
 
 A web dashboard for visualising and analysing Gamry Instruments electrochemical data (`.dta` files). Drag files in, get interactive plots with built-in analysis — no scripting required.
 
