@@ -15,7 +15,7 @@ from routers import analysis, export, files
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="EVA API",
+    title="Evangelina API",
     # Disable interactive API docs outside local development.
     docs_url="/docs"  if IS_DEV else None,
     redoc_url="/redoc" if IS_DEV else None,

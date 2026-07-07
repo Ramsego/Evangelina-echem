@@ -1,4 +1,4 @@
-# EVA — Electrochemical Visualization & Analysis
+# Evangelina — Electrochemical Visualisation and Analysis Suite
 
 A web dashboard for visualising and analysing Gamry Instruments electrochemical data (`.dta` files). Drag files in, get interactive plots with built-in analysis — no scripting required.
 
@@ -14,6 +14,13 @@ A web dashboard for visualising and analysing Gamry Instruments electrochemical 
 | CHRONOP | Galvanostatic Charge/Discharge | GCD — cycle life, Coulombic Efficiency overlay, fade, avg CE |
 | PWR800 | Multi-cycle GCD (Gamry PWR800) | GCD |
 | SEESAW | Large multi-cycle GCD | SEESAW — on-demand cycle range loading |
+
+---
+
+## Roadmap
+
+- BioLogic (.mpt / .mpr) file import
+- Generic two-column CSV import for any potentiostat
 
 ---
 
