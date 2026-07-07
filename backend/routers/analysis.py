@@ -135,7 +135,7 @@ class DunnRequest(BaseModel):
     target_scan_rate_mv: float
     v_offset:            float = 0.0
     im_divisor:          float = 1.0
-    n_points:            int   = 200
+    n_points:            int   = Field(200, ge=1, le=2_000)
 
     @field_validator("entries")
     @classmethod

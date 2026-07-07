@@ -270,14 +270,15 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
                       {fmt.toUpperCase()}
                     </button>
                   ))}
-                  <button
-                    onClick={() => handleOriginExport("opju")}
-                    disabled={originExporting || !caps?.opju}
-                    title={caps?.opju ? undefined : (caps?.opju_message ?? "Checking…")}
-                    className="flex-1 text-[10px] bg-forest-800 hover:bg-forest-700 text-forest-300 border border-forest-700 rounded px-1.5 py-0.5 disabled:opacity-40 transition-colors cursor-pointer"
-                  >
-                    .opju
-                  </button>
+                  {caps?.opju && (
+                    <button
+                      onClick={() => handleOriginExport("opju")}
+                      disabled={originExporting}
+                      className="flex-1 text-[10px] bg-forest-800 hover:bg-forest-700 text-forest-300 border border-forest-700 rounded px-1.5 py-0.5 disabled:opacity-40 transition-colors cursor-pointer"
+                    >
+                      .opju
+                    </button>
+                  )}
                 </div>
                 {originError && (
                   <p className="text-[10px] text-red-400 mt-1.5 leading-tight">{originError}</p>

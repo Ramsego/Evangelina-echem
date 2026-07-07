@@ -129,71 +129,78 @@ def _parse_regular(name: str, path: Path) -> dict:
         "metadata": extract_dta_metadata(path),
     }
 
-    if etype in ("CV", "LSV") and gp:
-        raw_curves = extract_cv_curves(gp)
-        curves_list = [
-            {"vf": _ser(df["Vf"].values), "im": _ser(df["Im"].values)}
-            for df in raw_curves
-        ]
-        if len(curves_list) > _CV_LAZY_THRESHOLD:
-            _cv_put(entry["id"], curves_list)
-            entry["total_curves"] = len(curves_list)
-        else:
-            entry["curves"] = curves_list
-    elif etype == "EISPOT" and gp:
-        df = extract_eis_df(gp)
-        entry["eis"] = {
-            "freq":  _ser(df["Freq"].values),
-            "zreal": _ser(df["Zreal"].values),
-            "zimag": _ser(df["Zimag"].values),
-            "zmod":  _ser(df["Zmod"].values),
-            "zphz":  _ser(df["Zphz"].values),
-        }
-    elif etype in ("CHRONOP", "PWR800_CYCLICCHARGEDISCHARGE"):
-        (cycles, discharge_caps, charge_by_cycle), durations = get_gcd_master_data(path)
-        entry["gcd"] = {
-            "cycles":          _ser(cycles),
-            "discharge_caps":  _ser(discharge_caps),
-            "charge_by_cycle": _ser(charge_by_cycle),
-            "durations":       _ser(durations),
-        }
-        # Energy from CAPACITYCURVE TABLE (PWR800 and some CHRONOP files have an
-        # Energy column in Joules — use it directly so the Energy view works even
-        # when no raw CURVE TABLE is present).
-        energy_from_table = {
-            str(c): round(d["dis_energy_j"] / 3.6, 4)
-            for c, d in durations.items()
-            if "dis_energy_j" in d
-        }
-        if energy_from_table:
-            entry["gcd"]["dis_energy_mwh"] = energy_from_table
-        ch_energy_from_table = {
-            str(c): round(d["chg_energy_j"] / 3.6, 4)
-            for c, d in durations.items()
-            if "chg_energy_j" in d
-        }
-        if ch_energy_from_table:
-            entry["gcd"]["ch_energy_mwh"] = ch_energy_from_table
+    try:
+        if etype in ("CV", "LSV") and gp:
+            raw_curves = extract_cv_curves(gp)
+            curves_list = [
+                {"vf": _ser(df["Vf"].values), "im": _ser(df["Im"].values)}
+                for df in raw_curves
+            ]
+            if len(curves_list) > _CV_LAZY_THRESHOLD:
+                _cv_put(entry["id"], curves_list)
+                entry["total_curves"] = len(curves_list)
+            else:
+                entry["curves"] = curves_list
+        elif etype == "EISPOT" and gp:
+            df = extract_eis_df(gp)
+            entry["eis"] = {
+                "freq":  _ser(df["Freq"].values),
+                "zreal": _ser(df["Zreal"].values),
+                "zimag": _ser(df["Zimag"].values),
+                "zmod":  _ser(df["Zmod"].values),
+                "zphz":  _ser(df["Zphz"].values),
+            }
+        elif etype in ("CHRONOP", "PWR800_CYCLICCHARGEDISCHARGE"):
+            (cycles, discharge_caps, charge_by_cycle), durations = get_gcd_master_data(path)
+            entry["gcd"] = {
+                "cycles":          _ser(cycles),
+                "discharge_caps":  _ser(discharge_caps),
+                "charge_by_cycle": _ser(charge_by_cycle),
+                "durations":       _ser(durations),
+            }
+            # Energy from CAPACITYCURVE TABLE (PWR800 and some CHRONOP files have an
+            # Energy column in Joules — use it directly so the Energy view works even
+            # when no raw CURVE TABLE is present).
+            energy_from_table = {
+                str(c): round(d["dis_energy_j"] / 3.6, 4)
+                for c, d in durations.items()
+                if "dis_energy_j" in d
+            }
+            if energy_from_table:
+                entry["gcd"]["dis_energy_mwh"] = energy_from_table
+            ch_energy_from_table = {
+                str(c): round(d["chg_energy_j"] / 3.6, 4)
+                for c, d in durations.items()
+                if "chg_energy_j" in d
+            }
+            if ch_energy_from_table:
+                entry["gcd"]["ch_energy_mwh"] = ch_energy_from_table
 
-        # Parse raw waveforms for on-demand cycle profiles (Profiles, dQ/dV, Energy views).
-        # For PWR800 files the CURVE TABLE is absent; waveforms will be empty and
-        # Profiles/dQ/dV views remain disabled — which is correct.
-        waveforms = load_gcd_master_waveforms(path)
-        if waveforms:
-            _gcd_put(entry["id"], waveforms)
-            entry["total_gcd_cycles"] = len(waveforms)
-            # Raw-waveform energy overrides the table-level energy when available,
-            # as it is integrated directly from V(t)·I(t) and is more accurate.
-            entry["gcd"]["dis_energy_mwh"] = {
-                str(c): round(data["discharge"]["energy_mwh"], 4)
-                for c, data in waveforms.items()
-                if "discharge" in data
-            }
-            entry["gcd"]["ch_energy_mwh"] = {
-                str(c): round(data["charge"]["energy_mwh"], 4)
-                for c, data in waveforms.items()
-                if "charge" in data
-            }
+            # Parse raw waveforms for on-demand cycle profiles (Profiles, dQ/dV, Energy views).
+            # For PWR800 files the CURVE TABLE is absent; waveforms will be empty and
+            # Profiles/dQ/dV views remain disabled — which is correct.
+            waveforms = load_gcd_master_waveforms(path)
+            if waveforms:
+                _gcd_put(entry["id"], waveforms)
+                entry["total_gcd_cycles"] = len(waveforms)
+                # Raw-waveform energy overrides the table-level energy when available,
+                # as it is integrated directly from V(t)·I(t) and is more accurate.
+                entry["gcd"]["dis_energy_mwh"] = {
+                    str(c): round(data["discharge"]["energy_mwh"], 4)
+                    for c, data in waveforms.items()
+                    if "discharge" in data
+                }
+                entry["gcd"]["ch_energy_mwh"] = {
+                    str(c): round(data["charge"]["energy_mwh"], 4)
+                    for c, data in waveforms.items()
+                    if "charge" in data
+                }
+    except Exception as exc:
+        logger.warning("data extraction failed for %s: %s", name, exc)
+        entry["etype"] = None
+        entry.pop("curves", None)
+        entry.pop("eis", None)
+        entry.pop("gcd", None)
 
     if entry.get("etype") is None:
         entry["error"] = (
