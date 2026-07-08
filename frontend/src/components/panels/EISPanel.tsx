@@ -133,15 +133,17 @@ export default function EISPanel({ file }: Props) {
           ...LAYOUT_BASE.xaxis,
           title: { text: xTitleOverride || "Z′ (Ω)", font: { color: "#74C69D" } },
           range: [0, limit],
-          // Always equal-scaled so impedance arcs are never distorted, even
-          // when a manual axis range is set.
-          scaleanchor: "y" as const, scaleratio: 1,
+          // Equal scale AND identical [0, limit] extents on both axes.
+          // constrain:"domain" makes Plotly shrink the drawing area to a square
+          // instead of silently rewriting the ranges to fill a wide panel.
+          scaleanchor: "y" as const, scaleratio: 1, constrain: "domain" as const,
           ...axisOverride(xMin, xMax, xLog),
         },
         yaxis: {
           ...LAYOUT_BASE.yaxis,
           title: { text: yTitleOverride || "−Z″ (Ω)", font: { color: "#74C69D" } },
           range: [0, limit],
+          constrain: "domain" as const,
           ...axisOverride(yMin, yMax, yLog),
         },
       };

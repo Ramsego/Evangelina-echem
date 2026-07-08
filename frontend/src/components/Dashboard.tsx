@@ -6,6 +6,7 @@ import { useFileLabels } from "../context/FileLabelContext";
 import PlotPanel from "./PlotPanel";
 import ComparisonPanel from "./ComparisonPanel";
 import AnalysisPanel from "./AnalysisPanel";
+import ErrorBoundary from "./ErrorBoundary";
 
 const COLS = 12;
 const MRG: [number, number] = [12, 12];
@@ -29,9 +30,14 @@ function calcPanelPx(containerW: number, total: number): number {
   return Math.max(280, Math.min(MAX_PANEL_PX, panelWidthPx));
 }
 
+// Header + control rows above the plot canvas (measured ~130-151px across panel
+// types) — without this, the *plot wrapper* isn't square even though the outer
+// panel box is, so aspect-locked plots (Nyquist) render with empty gutters.
+const CHROME_OVERHEAD_PX = 140;
+
 // Returns h in grid units for a non-collapsed panel.
 function calcNormalH(containerW: number, total: number): number {
-  const px = calcPanelPx(containerW, total);
+  const px = calcPanelPx(containerW, total) + CHROME_OVERHEAD_PX;
   return Math.round((px + MRG[1]) / (ROW_UNIT + MRG[1]));
 }
 
@@ -291,49 +297,55 @@ export default function Dashboard({
           >
             {files.filter(f => !collapsedIds.has(f.id)).map((file) => (
               <div key={file.id} style={{ height: "100%" }}>
-                <PlotPanel
-                  file={file}
-                  allFiles={files}
-                  onRemove={() => onFileRemoved(file.id)}
-                  isCollapsed={false}
-                  onToggleCollapse={() => toggleCollapse(file.id)}
-                  bgFileId={bgFileIds[file.id] ?? null}
-                  capVLo={capSettings[file.id]?.vLo ?? ""}
-                  capVHi={capSettings[file.id]?.vHi ?? ""}
-                  capKey={capSettings[file.id]?.key ?? 0}
-                  onFocus={() => setFocusedCVId(file.id)}
-                  onAnalyse={file.etype && ANALYSABLE_ETYPES.has(file.etype)
-                    ? () => onAnalysisAdded({
-                        id:     `ana-${file.id}`,
-                        name:   `${getLabel(file.id, file.name)} Analysis`,
-                        fileId: file.id,
-                      })
-                    : undefined}
-                />
+                <ErrorBoundary label={getLabel(file.id, file.name)}>
+                  <PlotPanel
+                    file={file}
+                    allFiles={files}
+                    onRemove={() => onFileRemoved(file.id)}
+                    isCollapsed={false}
+                    onToggleCollapse={() => toggleCollapse(file.id)}
+                    bgFileId={bgFileIds[file.id] ?? null}
+                    capVLo={capSettings[file.id]?.vLo ?? ""}
+                    capVHi={capSettings[file.id]?.vHi ?? ""}
+                    capKey={capSettings[file.id]?.key ?? 0}
+                    onFocus={() => setFocusedCVId(file.id)}
+                    onAnalyse={file.etype && ANALYSABLE_ETYPES.has(file.etype)
+                      ? () => onAnalysisAdded({
+                          id:     `ana-${file.id}`,
+                          name:   `${getLabel(file.id, file.name)} Analysis`,
+                          fileId: file.id,
+                        })
+                      : undefined}
+                  />
+                </ErrorBoundary>
               </div>
             ))}
             {comparisons.filter(c => !collapsedIds.has(c.id)).map((c) => (
               <div key={c.id} style={{ height: "100%" }}>
-                <ComparisonPanel
-                  comparison={c}
-                  files={files}
-                  onRemove={() => onComparisonRemoved(c.id)}
-                  isCollapsed={false}
-                  onToggleCollapse={() => toggleCollapse(c.id)}
-                  onRename={(patch) => onComparisonRenamed(c.id, patch)}
-                />
+                <ErrorBoundary label={c.name}>
+                  <ComparisonPanel
+                    comparison={c}
+                    files={files}
+                    onRemove={() => onComparisonRemoved(c.id)}
+                    isCollapsed={false}
+                    onToggleCollapse={() => toggleCollapse(c.id)}
+                    onRename={(patch) => onComparisonRenamed(c.id, patch)}
+                  />
+                </ErrorBoundary>
               </div>
             ))}
             {analyses.filter(a => !collapsedIds.has(a.id)).map((a) => (
               <div key={a.id} style={{ height: "100%" }}>
-                <AnalysisPanel
-                  session={a}
-                  files={files}
-                  onRemove={() => onAnalysisRemoved(a.id)}
-                  isCollapsed={false}
-                  onToggleCollapse={() => toggleCollapse(a.id)}
-                  onRename={(patch) => onAnalysisRenamed(a.id, patch)}
-                />
+                <ErrorBoundary label={a.name}>
+                  <AnalysisPanel
+                    session={a}
+                    files={files}
+                    onRemove={() => onAnalysisRemoved(a.id)}
+                    isCollapsed={false}
+                    onToggleCollapse={() => toggleCollapse(a.id)}
+                    onRename={(patch) => onAnalysisRenamed(a.id, patch)}
+                  />
+                </ErrorBoundary>
               </div>
             ))}
           </GridLayout>
