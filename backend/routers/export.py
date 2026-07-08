@@ -6,9 +6,11 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from limiter import limiter
 
 router = APIRouter()
 
@@ -116,7 +118,8 @@ def _check_origin() -> tuple[bool, str | None]:
 # ── Capabilities endpoint ─────────────────────────────────────────────────────
 
 @router.get("/capabilities")
-def get_capabilities():
+@limiter.limit("30/minute")
+def get_capabilities(request: Request):
     ok, msg = _check_origin()
     return {"xlsx": True, "csv": True, "opju": ok, "opju_message": msg}
 
@@ -124,7 +127,8 @@ def get_capabilities():
 # ── Main export endpoint ──────────────────────────────────────────────────────
 
 @router.post("")
-def export_data(req: ExportRequest):
+@limiter.limit("30/minute")
+def export_data(request: Request, req: ExportRequest):
     stem = req.filename.replace(".dta", "").replace(".DTA", "")
 
     if req.format == "opju":
