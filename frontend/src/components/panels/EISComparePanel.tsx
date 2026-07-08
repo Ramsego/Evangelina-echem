@@ -144,8 +144,8 @@ export default function EISComparePanel({ comparison, files }: Props) {
     const rawLay: Partial<Plotly.Layout> = view === "nyquist"
       ? {
           ...LAYOUT_BASE,
-          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: xTitleOverride || "Z′ (Ω)",  font: { color: "#74C69D" } }, scaleanchor: "y" as const, scaleratio: 1, ...axisOverride(xMin, xMax, xLog) },
-          yaxis: { ...LAYOUT_BASE.yaxis, title: { text: yTitleOverride || "−Z″ (Ω)", font: { color: "#74C69D" } }, ...axisOverride(yMin, yMax, yLog) },
+          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: xTitleOverride || "Z′ (Ω)",  font: { color: "#74C69D" } }, scaleanchor: "y" as const, scaleratio: 1, constrain: "domain" as const, ...axisOverride(xMin, xMax, xLog) },
+          yaxis: { ...LAYOUT_BASE.yaxis, title: { text: yTitleOverride || "−Z″ (Ω)", font: { color: "#74C69D" } }, constrain: "domain" as const, ...axisOverride(yMin, yMax, yLog) },
         }
       : {
           ...LAYOUT_BASE,

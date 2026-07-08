@@ -14,6 +14,7 @@ import { exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComment
 import { LAYOUT_BASE, axisOverride, parseScanRateMvs, interpolateLinear, shortName, computeExtents } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import { ELECTRODE_OPTIONS, refOffset, xAxisLabel } from "../../utils/referenceElectrodes";
+import { normDivisor } from "../../utils/normalization";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import AxisInput from "../AxisInput";
 import Tooltip from "../Tooltip";
@@ -87,7 +88,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   const [pairs,        setPairs]        = useState<PeakPair[]>([]);
 
   const vOffset   = refOffset(refFrom, refTo, pH);
-  const imDivisor = norm === "area" ? normVal : norm === "mass" ? normVal / 1000 : 1.0;
+  const imDivisor = normDivisor(norm, normVal);
   const yLabel    = norm === "area" ? "Current density (mA/cm²)" : norm === "mass" ? "Specific current (mA/g)" : "Current (mA)";
   const xLabel    = xAxisLabel(refTo);
 

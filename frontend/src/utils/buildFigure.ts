@@ -89,11 +89,13 @@ function buildNyquist(file: ParsedFile) {
         range:       [0, limit],
         scaleanchor: "y",
         scaleratio:  1,
+        constrain:   "domain",
       },
       yaxis: {
         ...BASE_LAYOUT.yaxis,
         title: { text: "−Z″ (Ω)", font: { color: "#74C69D" } },
         range: [0, limit],
+        constrain: "domain",
       },
     } as Partial<Plotly.Layout>,
   };

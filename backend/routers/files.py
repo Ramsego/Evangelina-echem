@@ -22,8 +22,6 @@ from gamry_plotter.data import (
     manual_detect_type,
     organize_gcd_files,
 )
-from gamry_plotter.demo import generate_sample_data
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -111,7 +109,7 @@ def _ser(val: Any) -> Any:
     return val
 
 
-def _parse_regular(name: str, path: Path) -> dict:
+def _parse_regular(name: str, path: Path, file_id: str | None = None) -> dict:
     gp = None
     etype = None
     try:
@@ -123,7 +121,7 @@ def _parse_regular(name: str, path: Path) -> dict:
         etype = manual_detect_type(path)
 
     entry: dict = {
-        "id":       str(uuid4()),
+        "id":       file_id or str(uuid4()),
         "name":     name,
         "etype":    etype,
         "metadata": extract_dta_metadata(path),
@@ -297,43 +295,25 @@ _SAMPLE_IDS = {
     "Sample_GCD.dta": "sample-gcd",
 }
 
+_SAMPLE_DIR = Path(__file__).resolve().parent.parent / "sample_data"
+
 _sample_cache: list[dict] | None = None
 
 
 def _build_sample() -> list[dict]:
-    raw = generate_sample_data()
-    results: list[dict] = []
-    for item in raw:
-        entry: dict = {"id": _SAMPLE_IDS.get(item["name"], item["name"]), "name": item["name"], "etype": item["etype"]}
-        if item["etype"] in ("CV", "LSV"):
-            entry["curves"] = [
-                {"vf": _ser(df["Vf"].values), "im": _ser(df["Im"].values)}
-                for df in item["curves"]
-            ]
-        elif item["etype"] == "EISPOT":
-            df = item["eis_df"]
-            entry["eis"] = {
-                "freq":  _ser(df["Freq"].values),
-                "zreal": _ser(df["Zreal"].values),
-                "zimag": _ser(df["Zimag"].values),
-                "zmod":  _ser(df["Zmod"].values),
-                "zphz":  _ser(df["Zphz"].values),
-            }
-        elif item["etype"] == "CHRONOP":
-            entry["gcd"] = {
-                "cycles":          _ser(item["cycles"]),
-                "discharge_caps":  _ser(item["discharge_caps"]),
-                "charge_by_cycle": _ser(item["charge_by_cycle"]),
-            }
-        results.append(entry)
-    return results
+    return [
+        _parse_regular(name, _SAMPLE_DIR / name, file_id=sid)
+        for name, sid in _SAMPLE_IDS.items()
+    ]
 
 
 @router.get("/sample")
 @limiter.limit("120/minute")
 def sample(request: Request) -> list[dict]:
     global _sample_cache
-    if _sample_cache is None:
+    # Re-parse when the sample GCD waveforms have been TTL-evicted so the
+    # on-demand cycle-profile endpoint keeps working for sample files.
+    if _sample_cache is None or _gcd_get("sample-gcd") is None:
         _sample_cache = _build_sample()
     return _sample_cache
 

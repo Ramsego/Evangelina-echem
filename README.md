@@ -1,6 +1,10 @@
 # Evangelina — Electrochemical Visualisation and Analysis Suite
 
+**[Try it live](https://evangelina-echem.vercel.app)** — no install needed; click "Try with sample data".
+
 A web dashboard for visualising and analysing Gamry Instruments electrochemical data (`.dta` files). Drag files in, get interactive plots with built-in analysis — no scripting required.
+
+![Evangelina dashboard with CV, LSV, EIS, and GCD panels](docs/screenshot-dashboard.png)
 
 ---
 
@@ -14,6 +18,17 @@ A web dashboard for visualising and analysing Gamry Instruments electrochemical 
 | CHRONOP | Galvanostatic Charge/Discharge | GCD — cycle life, Coulombic Efficiency overlay, fade, avg CE |
 | PWR800 | Multi-cycle GCD (Gamry PWR800) | GCD |
 | SEESAW | Large multi-cycle GCD | SEESAW — on-demand cycle range loading |
+
+---
+
+## Sample data
+
+The bundled demo files ("Try with sample data") are real measurements of porous carbon supercapacitor materials from
+[Zhang & Wei, *Electrochemical and Structural Data of Carbon-Based Materials for Energy Storage*](https://dataverse.no/dataset.xhtml?persistentId=doi:10.18710/F4NFMJ)
+(University of South-Eastern Norway, CC0 1.0, doi:10.18710/F4NFMJ), converted to Gamry `.dta` format.
+The LSV sample is simulated (no openly licensed LSV dataset was available); the EIS frequency axis is
+reconstructed as a standard log-spaced sweep because the source CSV omits it. Each file's `NOTES`
+metadata carries the same attribution.
 
 ---
 
@@ -104,7 +119,7 @@ Copy `backend/.env.example` to `backend/.env` and set at minimum:
 | `MAX_TOTAL_MB` | No | Per-request total size limit (default `100`) |
 | `CACHE_TTL_S` | No | In-memory cache expiry in seconds (default `3600` = 1 h) |
 
-For the frontend, no env var is needed in production when the frontend and backend share an origin via a reverse proxy (the API client defaults to `/api`). If they are on different origins, set `VITE_API_BASE_URL=https://your-backend.onrender.com/api` at **build time**.
+For the frontend, no env var is needed in production when the frontend and backend share an origin via a reverse proxy (the API client defaults to `/api`). If they are on different origins, set `VITE_API_BASE_URL=https://your-backend.onrender.com/api` at **build time**. Optionally set `VITE_SENTRY_DSN` (also build time) to enable client-side error tracking; unset by default, no-op if left out.
 
 **Privacy**: files are processed temporarily for analysis and are not stored permanently. Cached data expires after `CACHE_TTL_S` seconds and is purged immediately when a user removes a file.
 
@@ -115,4 +130,13 @@ For the frontend, no env var is needed in production when the frontend and backe
 | File | Contents |
 |---|---|
 | `ARCHITECTURE.md` | Why the technology choices were made and how the system is designed |
+| `VALIDATION.md` | How each analysis is verified (analytical recovery, invariance, and regression tests) and its known limitations |
 | `CLAUDE.md` | Instructions for the AI assistant (coding rules, color system, architecture constraints) |
+
+**Results should be independently verified before use in publications or other decisions where correctness matters.** See [`VALIDATION.md`](VALIDATION.md) for what has been checked and how.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 Sebastian Gonzalez. Bundled sample data: CC0 1.0 (see [Sample data](#sample-data)).

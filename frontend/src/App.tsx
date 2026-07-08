@@ -15,6 +15,7 @@ import { DEFAULT_STYLE, StyleSettings } from "./styles/styleTypes";
 import { APP_NAME, APP_SUBTITLE } from "./constants";
 
 const SESSION_KEY = "gamry-session-v1";
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export default function App() {
   const [files, setFiles] = useState<ParsedFile[]>([]);
@@ -33,7 +34,12 @@ export default function App() {
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return;
-      const saved = JSON.parse(raw) as { files?: ParsedFile[]; comparisons?: ComparisonSession[]; analyses?: AnalysisSession[] };
+      const saved = JSON.parse(raw) as { files?: ParsedFile[]; comparisons?: ComparisonSession[]; analyses?: AnalysisSession[]; savedAt?: number };
+      if (!saved.savedAt || Date.now() - saved.savedAt > SESSION_MAX_AGE_MS) {
+        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem("gamry-grid-layout");
+        return;
+      }
       if (saved.files?.length)       setFiles(saved.files);
       if (saved.comparisons?.length) setComparisons(saved.comparisons);
       if (saved.analyses?.length)    setAnalyses(saved.analyses);
@@ -43,7 +49,7 @@ export default function App() {
   // Persist session on every change (debounced by browser idle)
   useEffect(() => {
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ files, comparisons, analyses }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ files, comparisons, analyses, savedAt: Date.now() }));
     } catch {
       // Quota exceeded — strip large curve arrays and retry
       try {
@@ -52,7 +58,7 @@ export default function App() {
             ? { ...f, curves: undefined, partial: true }
             : f
         );
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ files: stripped, comparisons, analyses }));
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ files: stripped, comparisons, analyses, savedAt: Date.now() }));
       } catch { /* give up silently */ }
     }
   }, [files, comparisons, analyses]);

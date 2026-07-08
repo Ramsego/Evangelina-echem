@@ -55,6 +55,18 @@ def test_cv_too_many_points_rejected(client):
     assert r.status_code == 422
 
 
+def test_cv_capacitance_scales_linearly_with_current(client, sine_curve):
+    """C = ∫I dV / (2·ν·ΔV) is linear in I — doubling every current sample must
+    exactly double the reported capacitance."""
+    r1 = client.post("/api/analyze/cv", json={"curves": [sine_curve], "scan_rate_mv": 50.0})
+    doubled = {"vf": sine_curve["vf"], "im": [2 * i for i in sine_curve["im"]]}
+    r2 = client.post("/api/analyze/cv", json={"curves": [doubled], "scan_rate_mv": 50.0})
+    assert r1.status_code == 200 and r2.status_code == 200
+    c1 = r1.json()["capacitances_mf"][0]
+    c2 = r2.json()["capacitances_mf"][0]
+    assert c2 == pytest.approx(2 * c1, rel=1e-9)
+
+
 # ── Tafel ─────────────────────────────────────────────────────────────────────
 
 def test_tafel_known_slope(client, tafel_curve):
@@ -68,6 +80,19 @@ def test_tafel_known_slope(client, tafel_curve):
         assert abs(data["slope_mv_dec"] - 120.0) < 5.0
         # Exact synthetic data → negligible slope uncertainty
         assert data["slope_err_mv_dec"] < 0.1
+
+
+def test_tafel_slope_invariant_to_potential_offset(client, tafel_curve):
+    """Shifting every potential by a constant offset should not change the
+    fitted slope — the default window is relative to the curve's own Vf range,
+    so it translates with the data rather than clipping it differently."""
+    r1 = client.post("/api/analyze/tafel", json={"curve": tafel_curve, "area_cm2": 1.0})
+    shifted = {"vf": [v + 0.2 for v in tafel_curve["vf"]], "im": tafel_curve["im"]}
+    r2 = client.post("/api/analyze/tafel", json={"curve": shifted, "area_cm2": 1.0})
+    assert r1.status_code == 200 and r2.status_code == 200
+    d1, d2 = r1.json(), r2.json()
+    assert d1["success"] and d2["success"]
+    assert d2["slope_mv_dec"] == pytest.approx(d1["slope_mv_dec"], abs=0.5)
 
 
 def test_tafel_manual_window_respected(client, tafel_curve):

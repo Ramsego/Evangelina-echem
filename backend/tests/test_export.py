@@ -1,4 +1,5 @@
 """Tests for the /export endpoint — generic plotted-only sheets + legacy etype path."""
+import csv
 import io
 
 
@@ -46,6 +47,29 @@ def test_export_requires_etype_when_no_sheets(client):
     """Without sheets and without etype the request is rejected (422), not a 500."""
     r = client.post("/api/export", json={"format": "xlsx", "filename": "demo"})
     assert r.status_code == 422
+
+
+def test_csv_export_values_round_trip_exactly(client):
+    """The numeric cells in a CSV export must equal what was plotted, byte for
+    byte — this is the file an electrochemist opens in Excel/Origin and trusts.
+    Parsed with Python's csv module (not substring matching) so quoting or
+    delimiter issues would also be caught."""
+    rows = [[0.1, 1.23456], [0.2, -2.5], [0.3, 0.0]]
+    r = client.post("/api/export", json={
+        "format": "csv", "filename": "roundtrip",
+        "sheets": [{
+            "name": "Plotted",
+            "headers": ["Potential_V", "Current_mA"],
+            "units":   ["V", "mA"],
+            "rows":    rows,
+        }],
+    })
+    assert r.status_code == 200
+    parsed = list(csv.reader(io.StringIO(r.text)))
+    assert parsed[0] == ["Potential_V", "Current_mA"]
+    assert parsed[1] == ["V", "mA"]
+    data_rows = [[float(c) for c in row] for row in parsed[2:]]
+    assert data_rows == rows
 
 
 def test_legacy_etype_curves_still_works(client, sine_curve):

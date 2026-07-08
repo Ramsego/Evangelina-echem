@@ -18,6 +18,7 @@ import AxisInput from "../AxisInput";
 import Tooltip from "../Tooltip";
 import { AlertTriangle } from "lucide-react";
 import { median, computeGcdEsr, findDqdvPeaks, EsrResult } from "../../utils/gcdUtils";
+import { normDivisor } from "../../utils/normalization";
 
 const COLORS = ["#74C69D","#D4A057","#60a5fa","#f472b6","#a78bfa","#fbbf24","#34d399","#f87171"];
 
@@ -86,7 +87,7 @@ export default function GCDPanel({ file }: Props) {
   }, [view]);
 
   // ── Normalization divisor ─────────────────────────────────────────────────────
-  const qDivisor  = norm === "area" ? normVal : norm === "mass" ? normVal / 1000 : 1.0;
+  const qDivisor  = normDivisor(norm, normVal);
   const qLabel    = norm === "area" ? "Capacity (mAh/cm²)"
                   : norm === "mass" ? "Capacity (mAh/g)"
                   : "Capacity (mAh)";
