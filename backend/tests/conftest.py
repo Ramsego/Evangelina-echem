@@ -94,3 +94,23 @@ def eis_warburg_data():
         z_w = sigma * (1 - 1j) / w ** 0.5
         z.append(Rs + 1 / ((1j * w) ** alpha * Q + 1 / (Rct + z_w)))
     return _eis_payload_from_z(freqs, z, noise_frac=0.001)
+
+
+def dunn_entries(k1: float, k2: float, rates_mv=(10, 20, 50, 100), v_lo=0.0, v_hi=1.0, n=100):
+    """Build synthetic Dunn CV entries obeying i(V, ν) = k1·ν + k2·√ν exactly.
+
+    Current is constant across V (independent of potential) by design — the point
+    is to test the k1/k2 separation regression itself, not a realistic V-dependence.
+    im is returned in Amps: compute_dunn_analysis converts to mA internally, so k1
+    is in mA per (V/s) and k2 in mA per √(V/s) once recovered.
+    """
+    entries = []
+    for rate in rates_mv:
+        nu = rate / 1000.0  # mV/s -> V/s
+        v_up   = [v_lo + (v_hi - v_lo) * i / (n - 1) for i in range(n)]
+        v_down = list(reversed(v_up))
+        vf = v_up + v_down
+        i_mA = k1 * nu + k2 * (nu ** 0.5)
+        im_amps = [i_mA / 1000.0] * len(vf)
+        entries.append({"vf": vf, "im": im_amps, "scan_rate_mv": float(rate)})
+    return entries
