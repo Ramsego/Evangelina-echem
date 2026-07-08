@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { FlaskConical, Upload, X, Loader2, ChevronDown, ChevronRight, Download, AlertTriangle } from "lucide-react";
+import { FlaskConical, Upload, X, Loader2, ChevronDown, ChevronRight, Download, AlertTriangle, Github } from "lucide-react";
 import { ParsedFile, ComparisonSession, AnalysisSession, FileSelection, EType } from "../types";
 import { fetchSample, uploadFiles } from "../api/client";
 import { useFileLabels } from "../context/FileLabelContext";
@@ -877,6 +877,15 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
       {/* ── Theme switcher (footer) ──────────────────────────────────────────── */}
       <div className="shrink-0 px-4 py-2.5 border-t border-sidebar-border flex items-center gap-2">
         <span className="text-[10px] text-sidebar-muted uppercase tracking-wider flex-1">Theme</span>
+        <a
+          href="https://github.com/Ramsego/evangelina-echem"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="View source on GitHub"
+          className="text-sidebar-muted hover:text-forest-400 transition-colors mr-1"
+        >
+          <Github size={14} />
+        </a>
         {(["forest", "dark", "light", "blade"] as UITheme[]).map(t => (
           <button
             key={t}

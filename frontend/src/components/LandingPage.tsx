@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { FlaskConical, Upload, Loader2 } from "lucide-react";
+import { FlaskConical, Upload, Loader2, Github } from "lucide-react";
 import { ParsedFile } from "../types";
 import { uploadFiles, fetchSample } from "../api/client";
 import { APP_NAME, APP_SUBTITLE } from "../constants";
@@ -79,7 +79,7 @@ export default function LandingPage({ onFilesAdded }: Props) {
 
       {/* Name + subtitle — grouped identity block, set apart from the rest */}
       <div className="flex flex-col items-center mb-12">
-        <h1 className="eva-title text-5xl sm:text-6xl font-bold tracking-tight leading-none mb-2 text-center">
+        <h1 className="eva-title text-5xl sm:text-6xl font-bold tracking-tight !leading-tight mb-3 text-center">
           {APP_NAME}
         </h1>
         <p className="text-forest-400 text-xs uppercase tracking-[0.2em] text-center">
@@ -166,7 +166,18 @@ export default function LandingPage({ onFilesAdded }: Props) {
 
       <p className="text-xs text-forest-600 mt-6 text-center max-w-sm">
         Files are processed temporarily for analysis and are not stored permanently. Data expires automatically.
+        Results should be independently verified before use in publications.
       </p>
+
+      <a
+        href="https://github.com/Ramsego/evangelina-echem"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 text-xs text-forest-600 hover:text-forest-400 mt-3 transition-colors"
+      >
+        <Github size={14} />
+        Open source on GitHub
+      </a>
     </div>
   );
 }
