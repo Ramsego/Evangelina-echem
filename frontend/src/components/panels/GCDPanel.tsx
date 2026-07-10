@@ -10,7 +10,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments, SummarySection } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, metaComments, metaLines, decimateRows, PanelSummary } from "../../utils/exportUtils";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { computeExtents, computeDQDVFromCurrents, computeVQ, axisOverride, LAYOUT_BASE as SHARED_LAYOUT_BASE } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -128,7 +128,7 @@ export default function GCDPanel({ file }: Props) {
 
   // ── Hooks (must be before early returns) ─────────────────────────────────────
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: '', csv: '', plotData: [], layout: {} }));
   const uiRevKey = `${file.id}-${view}-${lo}-${hi}-${dqdvCycle}`;
   const { onRelayout: zoomOnRelayout, legendState, hasZoom, getRangeSnapshot } = useZoom(uiRevKey);
@@ -136,7 +136,7 @@ export default function GCDPanel({ file }: Props) {
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(file.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current());
     return () => unregister(file.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -342,12 +342,7 @@ export default function GCDPanel({ file }: Props) {
   );
 
   // ── Export ────────────────────────────────────────────────────────────────────
-  const buildCsv = useCallback((): string => {
-    const meta = [
-      ...metaComments(file.metadata),
-      ...(norm !== "none" ? [`# Normalised by ${norm === "area" ? `area: ${normVal} cm2` : `mass: ${normVal} mg`}`] : []),
-      ...(metrics ? [`# Fade: ${metrics.fade_pct.toFixed(1)}%  Avg CE: ${metrics.avg_ce.toFixed(1)}%`] : []),
-    ];
+  const plottedRows = useCallback((): { headers: string[]; units: string[]; rows: string[] } => {
     const hasCE = ceVals.some((v: number | null) => v != null);
     const headers = ["Cycle", "Discharge_Cap", ...(norm !== "none" ? [norm === "area" ? "Specific_Cap_area" : "Specific_Cap_mass"] : []), ...(hasCE ? ["CE"] : [])];
     const units   = ["", "mAh", ...(norm !== "none" ? [norm === "area" ? "mAh/cm2" : "mAh/g"] : []), ...(hasCE ? ["%"] : [])];
@@ -357,10 +352,20 @@ export default function GCDPanel({ file }: Props) {
       if (hasCE) row.push(ceVals[i] != null ? (ceVals[i] as number).toFixed(2) : "");
       return row.join(",");
     });
-    return [...meta, headers.join(","), units.join(","), ...rows].join("\n");
-  }, [gcd, disMah, normalizedCap, ceVals, norm, normVal, metrics, file.metadata]);
+    return { headers, units, rows };
+  }, [gcd, disMah, normalizedCap, ceVals, norm]);
 
-  const buildTxt = (): string => {
+  const buildCsv = useCallback((): string => {
+    const meta = [
+      ...metaComments(file.metadata),
+      ...(norm !== "none" ? [`# Normalised by ${norm === "area" ? `area: ${normVal} cm2` : `mass: ${normVal} mg`}`] : []),
+      ...(metrics ? [`# Fade: ${metrics.fade_pct.toFixed(1)}%  Avg CE: ${metrics.avg_ce.toFixed(1)}%`] : []),
+    ];
+    const { headers, units, rows } = plottedRows();
+    return [...meta, headers.join(","), units.join(","), ...rows].join("\n");
+  }, [plottedRows, normVal, metrics, file.metadata, norm]);
+
+  const buildSummary = (): PanelSummary => {
     const values: string[] = [];
     const warnings: string[] = [];
     if (metrics) {
@@ -409,25 +414,31 @@ export default function GCDPanel({ file }: Props) {
       "dQ/dV apparent peak voltage: Voltage of a local extremum of the smoothed",
       "  differential capacity curve. Depends on smoothing and measurement conditions.",
     ];
-    return buildSummaryTxt(
-      file.name, "GCD", [
+    const { headers, units, rows } = plottedRows();
+    const { rows: dataSample, note: dataNote } = decimateRows(rows);
+
+    return {
+      etypeLabel: "GCD",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
         { title: "Computed values", lines: values },
         { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
         { title: "Definitions", lines: definitions },
-      ] as SummarySection[],
-      `"I have galvanostatic charge–discharge data from [describe your system: chemistry,\nelectrode, current/C-rate, voltage window]. The computed parameters and their formulas\nare above. Please help me interpret these values, list possible explanations for any\nanomalies, and suggest follow-up experiments to distinguish between them."`,
-    );
+        { title: `Data table (${dataNote})`, lines: [headers.join(","), units.join(","), ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this galvanostatic\ncharge–discharge data (chemistry, electrode, current/C-rate, voltage window, temperature,\nexperimental objective). Once sufficient context has been provided, interpret the values\nquantitatively, explain any uncertainty, list possible explanations for anomalies, and\nsuggest follow-up experiments to distinguish between them.`,
+    };
   };
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
-    if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledData, finalLayout, file.name, fmt as "png" | "svg", style.exportShape);
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? file.name.replace(/\.dta$/i, "");
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, finalLayout, stem, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),
     csv: buildCsv(),
-    txt: buildTxt(),
+    summary: buildSummary(),
     plotData: styledData,
     layout: finalLayout,
   });

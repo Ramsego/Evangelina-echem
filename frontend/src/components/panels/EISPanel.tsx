@@ -10,7 +10,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments, SummarySection } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, metaComments, metaLines, decimateRows, PanelSummary } from "../../utils/exportUtils";
 import { useContainerSize } from "../../hooks/useContainerSize";
 import { computeExtents, axisOverride, LAYOUT_BASE as SHARED_LAYOUT_BASE } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
@@ -73,14 +73,14 @@ export default function EISPanel({ file }: Props) {
 
   // Hooks must be declared before any early return (Rules of Hooks)
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef = useRef<() => CollectResult>(() => ({ filename: '', csv: '', plotData: [], layout: {} }));
   const uiRevKey = `${file.id}-${view}`;
   const { onRelayout: zoomOnRelayout, legendState, hasZoom, getRangeSnapshot } = useZoom(uiRevKey);
   const [plotRef, plotSize] = useContainerSize();
   const { setLegendAutoSize } = useStyleContext();
   useEffect(() => {
-    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(file.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current());
     return () => unregister(file.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -241,22 +241,14 @@ export default function EISPanel({ file }: Props) {
   );
 
   // ── Export (non-hook parts — hooks are declared before the early return) ─
-  const buildCsv = useCallback((): string => {
-    const meta: string[] = [
-      ...metaComments(file.metadata),
-      ...(metrics ? [
-        `# ESR: ${metrics.esr.toFixed(2)} Ohm`,
-        ...(metrics.tau_ms != null ? [`# tau0: ${metrics.tau_ms.toFixed(1)} ms`] : []),
-        `# C_max: ${metrics.c_max_mf.toFixed(2)} mF`,
-      ] : []),
-    ];
+  const plottedRows = useCallback((): { headers: string[]; units: string[]; rows: string[] } => {
     const hasCC = !!metrics?.complex_cap;
     const headers = ["Freq", "Zreal", "Zimag", "Zmod", "Zphz"];
     const units   = ["Hz",   "Ohm",  "Ohm",  "Ohm",  "deg"];
     if (hasCC) { headers.push("C_prime", "C_dbl"); units.push("mF", "mF"); }
 
     const eisData = eis!;
-    const dataRows: string[] = [];
+    const rows: string[] = [];
     for (let i = 0; i < eisData.freq.length; i++) {
       const row = [
         eisData.freq[i].toExponential(4),
@@ -269,12 +261,25 @@ export default function EISPanel({ file }: Props) {
         const cc = metrics.complex_cap;
         row.push(cc.c_prime[i]?.toFixed(6) ?? "", cc.c_dbl[i]?.toFixed(6) ?? "");
       }
-      dataRows.push(row.join(","));
+      rows.push(row.join(","));
     }
-    return [...meta, headers.join(","), units.join(","), ...dataRows].join("\n");
-  }, [eis, metrics, file.metadata]);
+    return { headers, units, rows };
+  }, [eis, metrics]);
 
-  const buildTxt = (): string => {
+  const buildCsv = useCallback((): string => {
+    const meta: string[] = [
+      ...metaComments(file.metadata),
+      ...(metrics ? [
+        `# ESR: ${metrics.esr.toFixed(2)} Ohm`,
+        ...(metrics.tau_ms != null ? [`# tau0: ${metrics.tau_ms.toFixed(1)} ms`] : []),
+        `# C_max: ${metrics.c_max_mf.toFixed(2)} mF`,
+      ] : []),
+    ];
+    const { headers, units, rows } = plottedRows();
+    return [...meta, headers.join(","), units.join(","), ...rows].join("\n");
+  }, [plottedRows, metrics, file.metadata]);
+
+  const buildSummary = (): PanelSummary => {
     const values: string[] = [];
     const warnings: string[] = [];
     if (metrics) {
@@ -314,25 +319,31 @@ export default function EISPanel({ file }: Props) {
       "σ: Warburg coefficient (semi-infinite diffusion).",
       "±: 1σ standard error from the fit's Jacobian covariance.",
     ];
-    return buildSummaryTxt(
-      file.name, "EIS", [
+    const { headers, units, rows } = plottedRows();
+    const { rows: dataSample, note: dataNote } = decimateRows(rows);
+
+    return {
+      etypeLabel: "EIS",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
         { title: "Computed values", lines: values },
         { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
         { title: "Definitions", lines: definitions },
-      ] as SummarySection[],
-      `"I have electrochemical impedance spectroscopy data from [describe your system: electrode,\nelectrolyte, DC bias, amplitude]. The computed parameters and their formulas are above.\nPlease help me interpret these values, list possible explanations for any anomalies, and\nsuggest follow-up experiments to distinguish between them."`,
-    );
+        { title: `Data table (${dataNote})`, lines: [headers.join(","), units.join(","), ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this impedance spectroscopy\ndata (working electrode, electrolyte, reference electrode, counter electrode, DC bias, AC\namplitude, temperature, experimental objective). Once sufficient context has been\nprovided, interpret the values quantitatively, explain any uncertainty, list possible\nexplanations for anomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
   };
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
-    if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledPlotData, finalLayout, file.name, fmt as "png" | "svg", style.exportShape);
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? file.name.replace(/\.dta$/i, "");
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledPlotData, finalLayout, stem, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),
     csv: buildCsv(),
-    txt: buildTxt(),
+    summary: buildSummary(),
     plotData: styledPlotData,
     layout: finalLayout,
   });

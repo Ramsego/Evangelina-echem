@@ -3,7 +3,7 @@ import { GripHorizontal, X, Download, Maximize2, Minimize2, Minus, Plus } from "
 import { ParsedFile, ComparisonSession } from "../types";
 import { useExportContext, ExportFmt } from "../context/ExportContext";
 import { useStyle } from "../context/StyleContext";
-import { buildZip } from "../utils/exportUtils";
+import { buildZip, buildSummaryTxt, downloadTxt } from "../utils/exportUtils";
 import CVComparePanel  from "./panels/CVComparePanel";
 import EISComparePanel from "./panels/EISComparePanel";
 import GCDComparePanel from "./panels/GCDComparePanel";
@@ -63,7 +63,7 @@ function ComparisonHeader({ comparison, onRemove, isCollapsed, onToggleCollapse,
     setExporting(true);
     try {
       if (fmtList.length === 1) {
-        exportOne(comparison.id, fmtList[0]);
+        exportOne(comparison.id, fmtList[0], filename || undefined);
       } else {
         const entry = collectOne(comparison.id);
         if (entry) await buildZip([entry], fmtList, filename || comparison.name, style.exportShape);
@@ -72,6 +72,14 @@ function ComparisonHeader({ comparison, onRemove, isCollapsed, onToggleCollapse,
       setExporting(false);
       setOpen(false);
     }
+  }
+
+  function handleLlmDownload() {
+    const summary = collectOne(comparison.id)?.summary;
+    if (!summary) return;
+    const text = buildSummaryTxt(comparison.name, summary.etypeLabel, summary.sections, summary.llmInstructions);
+    downloadTxt(text, filename || comparison.name);
+    setOpen(false);
   }
 
   return (
@@ -124,6 +132,15 @@ function ComparisonHeader({ comparison, onRemove, isCollapsed, onToggleCollapse,
             <button onClick={handleDownload} disabled={fmts.size === 0 || exporting}
                     className="w-full text-[10px] bg-forest-700 hover:bg-forest-600 text-forest-100 rounded px-2 py-1 disabled:opacity-40 transition-colors cursor-pointer">
               {exporting ? "Exporting…" : fmts.size >= 2 ? "Download ZIP" : "Download"}
+            </button>
+
+            <div className="border-t border-forest-700 my-2" />
+            <div className="text-[10px] text-forest-500 mb-1.5">For LLM analysis</div>
+            <button
+              onClick={handleLlmDownload}
+              className="w-full text-[10px] bg-forest-800 hover:bg-forest-700 text-forest-300 border border-forest-700 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+            >
+              Download .txt (values, formulas, data)
             </button>
           </div>
         )}

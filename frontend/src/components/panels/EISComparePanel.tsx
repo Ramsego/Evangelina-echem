@@ -9,7 +9,7 @@ import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, decimateRows, PanelSummary, SummarySection } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import { useContainerSize } from "../../hooks/useContainerSize";
@@ -67,7 +67,7 @@ export default function EISComparePanel({ comparison, files }: Props) {
   }, [view]);
 
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
   const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${view}`;
@@ -76,7 +76,7 @@ export default function EISComparePanel({ comparison, files }: Props) {
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
+    register(comparison.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -246,14 +246,72 @@ export default function EISComparePanel({ comparison, files }: Props) {
     return [{ name: "Plotted", headers, units, rows }];
   }
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
-    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg", style.exportShape);
+  function buildSummary(): PanelSummary {
+    const visibleFiles = eisFiles.filter(f => visible[f.id] !== false);
+    const filesCompared: string[] = [];
+    eisFiles.forEach(file => {
+      const label = getLabel(file.id, file.name);
+      if (visible[file.id] === false) {
+        filesCompared.push(`- ${label}: hidden (excluded from data table)`);
+        return;
+      }
+      const eis = file.eis!;
+      const fmin = Math.min(...eis.freq);
+      const fmax = Math.max(...eis.freq);
+      filesCompared.push(`- ${label}: ${eis.freq.length} points, ${fmin.toExponential(2)}–${fmax.toExponential(2)} Hz`);
+    });
+
+    const settings = [`View: ${view === "nyquist" ? "Nyquist" : "Bode (|Z| vs frequency)"}`];
+
+    const fitsLines: string[] = [];
+    if (showFit) {
+      eisFiles.forEach((file, idx) => {
+        if (visible[file.id] === false) return;
+        const label = getLabel(file.id, file.name);
+        const q = fitQueries[idx];
+        const fit = q?.data?.circuit_fit;
+        if (q?.isLoading) {
+          fitsLines.push(`- ${label}: fit pending`);
+        } else if (!fit) {
+          fitsLines.push(`- ${label}: fit failed`);
+        } else {
+          const cPart = fit.C_dl_uF != null
+            ? `C_dl = ${fmtPm(fit.C_dl_uF, fit.C_dl_uF_err)} µF`
+            : `Q = ${fmtPm(fit.Q, fit.Q_err)}, α = ${fmtPm(fit.alpha, fit.alpha_err)}`;
+          const sigmaPart = fit.sigma != null ? `, σ = ${fmtPm(fit.sigma, fit.sigma_err)} Ω·s⁻½` : "";
+          fitsLines.push(`- ${label}: model ${MODEL_LABEL[fit.model] ?? fit.model}, R_s = ${fmtPm(fit.R_s, fit.R_s_err)} Ω, R_ct = ${fmtPm(fit.R_ct, fit.R_ct_err)} Ω, ${cPart}${sigmaPart}`);
+        }
+      });
+    }
+
+    const [header, units, ...rows] = buildCsv().split("\n");
+    const { rows: dataSample, note: dataNote } = decimateRows(rows);
+
+    const sections: SummarySection[] = [
+      { title: "Files compared", lines: filesCompared },
+      { title: "Settings", lines: settings },
+    ];
+    if (showFit) sections.push({ title: "Equivalent-circuit fits", lines: fitsLines });
+    sections.push({ title: "Warnings", lines: ["(none)"] });
+    sections.push({ title: `Data table (${dataNote})`, lines: [header, units, ...dataSample] });
+
+    return {
+      etypeLabel: `EIS comparison (${visibleFiles.length} files)`,
+      sections,
+      llmInstructions: `Do not make assumptions about the experimental setup. This is an overlay comparison of\n${visibleFiles.length} electrochemical impedance spectroscopy files. First ask the user for any missing\ninformation that could materially affect interpretation (what distinguishes the samples,\nworking electrode, electrolyte, DC bias, AC amplitude, temperature, experimental\nobjective). Once sufficient context has been provided, compare the files quantitatively,\ndescribe where they differ, explain any uncertainty, list possible explanations for\nanomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
+  }
+
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? comparison.name;
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, layout, stem, fmt as "png" | "svg", style.exportShape);
   };
   sheetsRef.current = buildSheets;
   collectRef.current = () => ({
     filename: comparison.name,
     csv:      buildCsv(),
+    summary:  buildSummary(),
     plotData: styledData,
     layout,
   });

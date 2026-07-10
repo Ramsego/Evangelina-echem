@@ -80,9 +80,10 @@ interface Props {
   allCvFiles:   ParsedFile[];
   getSrCsvRef:  React.MutableRefObject<() => string>;
   getSrPlotsRef: React.MutableRefObject<() => SrPlotExport[]>;
+  getSrSummaryRef: React.MutableRefObject<() => string[]>;
 }
 
-export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRef }: Props) {
+export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRef, getSrSummaryRef }: Props) {
   const style = useStyle();
   const { getLabel } = useFileLabels();
   const [bExplain, setBExplain] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
   }, [srEntries, srFileMap]);
 
   const srLoading = srRunKey > 0 && srQueries.some(q => q.isLoading || q.isPending);
+  const srQueriesKey = srQueries.map(q => q.dataUpdatedAt).join(",");
 
   const bValueData = useMemo(() => {
     if (srRunKey === 0) return null;
@@ -167,8 +169,8 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
     const cFit   = linearFit(capPoints.map(p => Math.sqrt(p.sr)),  capPoints.map(p => p.capMf));
 
     return { oxPoints, redPoints, capPoints, oxFit, redFit, cFit };
-    // srQueries identity changes on every result update; srRunKey gates re-computation
-  }, [srRunKey, srEntries, srFileMap]); // eslint-disable-line react-hooks/exhaustive-deps
+    // srQueries identity changes every render; srQueriesKey captures when results actually settle
+  }, [srRunKey, srEntries, srFileMap, srQueriesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function buildSrCsv(): string {
     if (!bValueData) return "";
@@ -189,6 +191,47 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
   }
 
   getSrCsvRef.current = buildSrCsv;
+
+  function buildSrSummary(): string[] {
+    if (!bValueData) return [];
+    const lines: string[] = [];
+    if (bValueData.oxFit) {
+      lines.push(`b (oxidation): ${fmt(bValueData.oxFit.slope, 3)} (R² = ${fmt(bValueData.oxFit.r2, 3)}) [${EXPLAIN_SR_CSV}]`);
+    }
+    if (bValueData.redFit) {
+      lines.push(`b (reduction): ${fmt(bValueData.redFit.slope, 3)} (R² = ${fmt(bValueData.redFit.r2, 3)})`);
+    }
+    if (!bValueData.oxFit && !bValueData.redFit) {
+      lines.push("No peaks detected in selected files");
+    }
+    if (bValueData.cFit) {
+      lines.push(`C vs √ν slope: ${fmt(bValueData.cFit.slope, 4)} mF·s^0.5·mV^-0.5 (R² = ${fmt(bValueData.cFit.r2, 3)})`);
+    }
+
+    if (bValueData.oxPoints.length > 0 || bValueData.redPoints.length > 0) {
+      lines.push("", "Peak currents by scan rate:");
+      const rates = Array.from(new Set([
+        ...bValueData.oxPoints.map(p => p.sr),
+        ...bValueData.redPoints.map(p => p.sr),
+      ])).sort((a, b) => a - b);
+      rates.forEach(sr => {
+        const oxIps  = bValueData.oxPoints.filter(p => p.sr === sr).map(p => fmt(p.ip, 4));
+        const redIps = bValueData.redPoints.filter(p => p.sr === sr).map(p => fmt(p.ip, 4));
+        lines.push(`  ν=${sr} mV/s: ip_ox=[${oxIps.join(", ")}] mA, ip_red=[${redIps.join(", ")}] mA`);
+      });
+    }
+
+    if (bValueData.capPoints.length > 0) {
+      lines.push("", "Capacitance by scan rate:");
+      bValueData.capPoints.slice().sort((a, b) => a.sr - b.sr).forEach(p => {
+        lines.push(`  ν=${p.sr} mV/s: C=${fmt(p.capMf, 4)} mF`);
+      });
+    }
+
+    return lines;
+  }
+
+  getSrSummaryRef.current = buildSrSummary;
 
   const srPlots = useMemo((): SrPlotExport[] => {
     if (!bValueData) return [];

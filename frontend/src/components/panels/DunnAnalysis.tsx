@@ -7,6 +7,7 @@ import { useFileLabels } from "../../context/FileLabelContext";
 import { useStyle } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout } from "../../utils/applyStyle";
 import { PALETTES } from "../../styles/styleTypes";
+import { decimateRows } from "../../utils/exportUtils";
 import ClampedPlot from "../ClampedPlot";
 
 export interface DunnPlotExport {
@@ -33,9 +34,10 @@ interface Props {
   allCvFiles:    ParsedFile[];
   getDunnCsvRef: React.MutableRefObject<() => string>;
   getDunnPlotRef: React.MutableRefObject<() => DunnPlotExport | null>;
+  getDunnSummaryRef: React.MutableRefObject<() => string[]>;
 }
 
-export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef }: Props) {
+export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef, getDunnSummaryRef }: Props) {
   const style    = useStyle();
   const { getLabel } = useFileLabels();
 
@@ -130,6 +132,26 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
   }
 
   getDunnCsvRef.current = buildDunnCsv;
+
+  function buildDunnSummary(): string[] {
+    if (!data) return [];
+    const lines: string[] = [
+      `Target scan rate: ${targetSr} mV/s`,
+      `Capacitive fraction: ${fmt(data.cap_fraction * 100, 1)}%`,
+      `Diffusion fraction: ${fmt(data.diff_fraction * 100, 1)}%`,
+      `Regression R² (mean): ${fmt(data.r2_mean, 3)}`,
+      `[${EXPLAIN_DUNN}]`,
+      "",
+    ];
+    const decompRows = data.voltages.map((v, i) =>
+      `${v.toFixed(5)},${data.i_total[i].toFixed(5)},${data.i_cap[i].toFixed(5)},${data.i_diff[i].toFixed(5)}`
+    );
+    const { rows: decompSample, note: decompNote } = decimateRows(decompRows);
+    lines.push(`Decomposition (${decompNote}):`, "V (V),i_total (mA),i_cap (mA),i_diff (mA)", ...decompSample);
+    return lines;
+  }
+
+  getDunnSummaryRef.current = buildDunnSummary;
 
   const dunnPlot = useMemo((): DunnPlotExport | null => {
     if (!data) return null;

@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ParsedFile, GCDResponse } from "../../types";
 import { analyzeGCD } from "../../api/client";
+import { metaLines, decimateRows, PanelSummary } from "../../utils/exportUtils";
 
 interface Props {
   file:      ParsedFile;
   getCsvRef: React.MutableRefObject<() => string>;
+  getSummaryRef: React.MutableRefObject<() => PanelSummary | undefined>;
 }
 
 const EXPLAIN: Record<string, string> = {
@@ -30,7 +32,7 @@ function QBtn({ id, active, onToggle }: { id: string; active: boolean; onToggle:
   );
 }
 
-export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
+export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Props) {
   const gcd = file.gcd;
   const [colExplain, setColExplain] = useState<string | null>(null);
   const toggle = (id: string) => setColExplain(prev => prev === id ? null : id);
@@ -68,6 +70,37 @@ export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
   getCsvRef.current = buildCsv;
 
   const cycles = gcd?.cycles ?? [];
+
+  function buildSummary(): PanelSummary {
+    const values = data
+      ? [
+          `Average CE: ${fmt((data as GCDResponse).avg_ce, 2)}%  [CE = Q_dis/Q_ch × 100]`,
+          `Capacity fade: ${fmt((data as GCDResponse).fade_pct, 2)}%  [fade over ${cycles.length} cycles vs cycle 1]`,
+        ]
+      : ["(analysis not available)"];
+
+    const dataRows = data
+      ? (data as GCDResponse).dis_mah.map((dis, i) => {
+          const ce  = (data as GCDResponse).ce_vals[i];
+          const ret = disMah0 != null && disMah0 > 0 ? (dis / disMah0) * 100 : null;
+          return `${cycles[i] ?? i + 1},${fmt(dis, 4)},${fmt(ce, 2)},${fmt(ret, 2)}`;
+        })
+      : [];
+    const { rows: dataSample, note: dataNote } = decimateRows(dataRows);
+
+    return {
+      etypeLabel: "GCD analysis",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
+        { title: "Computed values", lines: values },
+        { title: "Warnings", lines: isError ? ["Analysis failed"] : ["(none)"] },
+        { title: "Definitions", lines: [`Discharge capacity: ${EXPLAIN.dis}`, `CE: ${EXPLAIN.ce}`, `Retention: ${EXPLAIN.ret}`] },
+        { title: `Data table (${dataNote})`, lines: ["Cycle,DisCap (mAh),CE (%),Retention (%)", ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this galvanostatic\ncharge–discharge analysis (chemistry, electrode, current/C-rate, voltage window,\ntemperature, experimental objective). Once sufficient context has been provided, interpret\nthe values quantitatively, explain any uncertainty, list possible explanations for\nanomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
+  }
+  getSummaryRef.current = buildSummary;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

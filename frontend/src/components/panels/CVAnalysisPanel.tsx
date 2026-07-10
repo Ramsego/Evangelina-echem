@@ -5,6 +5,7 @@ import { analyzeCV } from "../../api/client";
 import { parseScanRateMvs } from "../../utils/plotUtils";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { refOffset } from "../../utils/referenceElectrodes";
+import { metaLines, PanelSummary } from "../../utils/exportUtils";
 import ScanRateAnalysis, { SrPlotExport } from "./ScanRateAnalysis";
 import DunnAnalysis, { DunnPlotExport } from "./DunnAnalysis";
 
@@ -28,6 +29,7 @@ interface Props {
   getCsvRef:      React.MutableRefObject<() => string>;
   getPlotRef:     React.MutableRefObject<() => CVAnalysisPlots>;
   getMetricRowsRef: React.MutableRefObject<() => MetricRow[]>;
+  getSummaryRef:  React.MutableRefObject<() => PanelSummary | undefined>;
 }
 
 const EXPLAIN: Record<string, string> = {
@@ -74,7 +76,7 @@ function ExplainRow({ cols, text }: { cols: number; text: string }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, getMetricRowsRef }: Props) {
+export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, getMetricRowsRef, getSummaryRef }: Props) {
   const curves       = file.curves ?? [];
   const total        = curves.length;
   const detectedRate = parseScanRateMvs(file.metadata?.SCANRATE);
@@ -121,6 +123,8 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, ge
   const getDunnCsvRef  = useRef<() => string>(() => "");
   const getDunnPlotRef = useRef<() => DunnPlotExport | null>(() => null);
   const getSrPlotsRef  = useRef<() => SrPlotExport[]>(() => []);
+  const getSrSummaryRef   = useRef<() => string[]>(() => []);
+  const getDunnSummaryRef = useRef<() => string[]>(() => []);
 
   getPlotRef.current = () => ({
     dunn: getDunnPlotRef.current(),
@@ -205,6 +209,69 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, ge
 
   const capFactor   = cellConfig === "full_symmetric" ? 2 : 1;
   const displayCaps = caps.map(c => c * capFactor);
+
+  function buildSummary(): PanelSummary {
+    const cellLabel = cellConfig === "full_symmetric" ? "2-electrode symmetric (×2 correction applied)" : "3-electrode half-cell";
+    const settings: string[] = [
+      `Scan rate: ${scanRate} mV/s${detectedRate != null ? " (from file metadata)" : " (user-entered)"}`,
+      `Cycles analysed: ${safeLo}–${safeHi} of ${total}`,
+      `Cell configuration: ${cellLabel}`,
+    ];
+    if (vOffset !== 0) settings.push(`Reference conversion: ${refFrom} → ${refTo} (offset ${vOffset >= 0 ? "+" : ""}${vOffset.toFixed(3)} V)`);
+    if (norm !== "none") settings.push(`Normalisation: by ${norm} (${normVal} ${norm === "area" ? "cm²" : "mg"})`);
+
+    const values: string[] = [];
+    if (displayCaps.length >= 2) {
+      values.push(`C (mean ± std, cycles ${safeLo}–${safeHi}): ${mean(displayCaps).toFixed(4)} ± ${std(displayCaps).toFixed(4)} mF [C = ∫I dV / (2·ΔV·ν)${capFactor === 2 ? "; ×2 two-electrode correction applied" : ""}]`);
+      values.push(`Loop area (mean ± std): ${mean(areas).toFixed(4)} ± ${std(areas).toFixed(4)} mA·V [area = ∫I dV]`);
+    } else if (displayCaps.length === 1) {
+      values.push(`C: ${fmt(displayCaps[0], 4)} mF [C = ∫I dV / (2·ΔV·ν)${capFactor === 2 ? "; ×2 two-electrode correction applied" : ""}]`);
+      values.push(`Loop area: ${fmt(areas[0], 4)} mA·V [area = ∫I dV]`);
+    }
+    peaks.forEach((pk, i) => {
+      const eOx  = pk.oxidation.voltages[0];
+      const eRed = pk.reduction.voltages[0];
+      const ipA  = pk.oxidation.currents[0];
+      const ipC  = pk.reduction.currents[0];
+      const dEp  = eOx != null && eRed != null ? (eOx - eRed) * 1000 : null;
+      const eH   = eOx != null && eRed != null ? (eOx + eRed) / 2 : null;
+      const rat  = ipA != null && ipC != null && ipA !== 0 ? Math.abs(ipC / ipA) : null;
+      values.push(`Cycle ${selectedIndices[i] + 1}: E_ox=${fmt(eOx, 4)} V  E_red=${fmt(eRed, 4)} V  ΔEp=${fmt(dEp, 2)} mV  E½=${fmt(eH, 4)} V  |ip_c/ip_a|=${fmt(rat, 3)}`);
+    });
+
+    const srLines   = getSrSummaryRef.current();
+    const dunnLines = getDunnSummaryRef.current();
+
+    const warnings: string[] = [];
+    if (!data) warnings.push("Analysis not yet run or failed");
+    else if (peaks.length === 0) warnings.push("No peaks detected");
+
+    const definitions = [
+      `C: ${EXPLAIN.c}`,
+      `ΔEp: ${EXPLAIN.dep}`,
+      `E½: ${EXPLAIN.ehalf}`,
+      `|ip_c/ip_a|: ${EXPLAIN.ratio}`,
+    ];
+
+    const metricRows = buildMetricRows();
+    const dataTableLines = ["Section,Metric,Cycle,Value,Unit", ...metricRows.map(r => `${r.section},${r.metric},${r.cycle},${r.value},${r.unit}`)];
+
+    return {
+      etypeLabel: "CV analysis",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
+        { title: "Analysis settings", lines: settings },
+        { title: "Computed values", lines: values },
+        { title: "Scan-rate (b-value) analysis", lines: srLines.length ? srLines : ["(not run — open the Scan Rate Analysis section and click Run analysis)"] },
+        { title: "Dunn analysis", lines: dunnLines.length ? dunnLines : ["(not run — open the Dunn Analysis section and click Run analysis)"] },
+        { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
+        { title: "Definitions", lines: definitions },
+        { title: "Data table (metric rows)", lines: dataTableLines },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this cyclic voltammetry\nanalysis (working electrode, electrolyte, reference electrode, counter electrode, scan\nrate confirmation, cell configuration confirmation, temperature, experimental objective).\nOnce sufficient context has been provided, interpret the values quantitatively, explain\nany uncertainty, list possible explanations for anomalies, and suggest follow-up\nexperiments to distinguish between them.`,
+    };
+  }
+  getSummaryRef.current = buildSummary;
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -386,13 +453,13 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, ge
             {/* ── Scan Rate Analysis ── */}
             <SectionHeader label="Scan Rate Analysis" open={srOpen} onToggle={() => setSrOpen(o => !o)} />
             {srOpen && (
-              <ScanRateAnalysis allCvFiles={allCvFiles} getSrCsvRef={getSrCsvRef} getSrPlotsRef={getSrPlotsRef} />
+              <ScanRateAnalysis allCvFiles={allCvFiles} getSrCsvRef={getSrCsvRef} getSrPlotsRef={getSrPlotsRef} getSrSummaryRef={getSrSummaryRef} />
             )}
 
             {/* ── Dunn Analysis ── */}
             <SectionHeader label="Dunn Analysis (capacitive vs diffusion)" open={dunnOpen} onToggle={() => setDunnOpen(o => !o)} />
             {dunnOpen && (
-              <DunnAnalysis allCvFiles={allCvFiles} getDunnCsvRef={getDunnCsvRef} getDunnPlotRef={getDunnPlotRef} />
+              <DunnAnalysis allCvFiles={allCvFiles} getDunnCsvRef={getDunnCsvRef} getDunnPlotRef={getDunnPlotRef} getDunnSummaryRef={getDunnSummaryRef} />
             )}
 
           </div>

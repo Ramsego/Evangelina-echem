@@ -4,7 +4,7 @@ import { ParsedFile, AnalysisSession } from "../types";
 import { useExportContext } from "../context/ExportContext";
 import { useStyle } from "../context/StyleContext";
 import { exportSheets } from "../api/client";
-import { downloadCsv, exportPlotImage } from "../utils/exportUtils";
+import { downloadCsv, downloadTxt, buildSummaryTxt, exportPlotImage, PanelSummary } from "../utils/exportUtils";
 import CVAnalysisPanel, { CVAnalysisPlots, MetricRow } from "./panels/CVAnalysisPanel";
 import EISAnalysisPanel from "./panels/EISAnalysisPanel";
 import GCDAnalysisPanel from "./panels/GCDAnalysisPanel";
@@ -47,6 +47,7 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
   const getCsvRef        = useRef<() => string>(() => "");
   const getPlotRef       = useRef<() => CVAnalysisPlots>(() => ({ dunn: null, sr: [] }));
   const getMetricRowsRef = useRef<() => MetricRow[]>(() => []);
+  const getSummaryRef    = useRef<() => PanelSummary | undefined>(() => undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy,     setBusy]     = useState(false);
   const style = useStyle(session.fileId);
@@ -75,10 +76,17 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
     return {
       filename: session.name.replace(/\.dta$/i, ""),
       csv:      getCsvRef.current(),
+      summary:  getSummaryRef.current(),
       plotData: firstPlot?.data ?? [],
       layout:   firstPlot?.layout ?? {},
     };
   };
+
+  function handleLlmDownload() {
+    const summary = getSummaryRef.current();
+    if (!summary) return;
+    downloadTxt(buildSummaryTxt(session.name, summary.etypeLabel, summary.sections, summary.llmInstructions), base);
+  }
 
   useEffect(() => {
     register(session.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
@@ -183,36 +191,34 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
 
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${color}`}>{label}</span>
 
-        {isCV ? (
-          <div ref={menuRef} className="relative shrink-0" onMouseDown={e => e.stopPropagation()}>
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              title="Export / download"
-              className="text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
-            >
-              <Download size={13} />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-5 z-20 flex flex-col w-40 rounded-md border border-forest-700 bg-forest-900 shadow-lg shadow-forest-950/40 py-1 text-[11px] text-forest-200">
-                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { downloadCsv(getCsvRef.current(), session.name); setMenuOpen(false); }}>Table — CSV</button>
-                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { exportTablePng(); setMenuOpen(false); }}>Table — PNG</button>
-                <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors disabled:opacity-50" disabled={busy} onClick={() => { exportTableXlsx(); setMenuOpen(false); }}>Table — XLSX</button>
-                {hasSubPlots() && (
-                  <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors border-t border-forest-700 mt-1 pt-1.5" onClick={() => { exportSubPlots(); setMenuOpen(false); }}>Plots — PNG</button>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
+        <div ref={menuRef} className="relative shrink-0" onMouseDown={e => e.stopPropagation()}>
           <button
-            onClick={() => downloadCsv(getCsvRef.current(), session.name)}
-            onMouseDown={e => e.stopPropagation()}
-            title="Download CSV"
-            className="shrink-0 text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
+            onClick={() => setMenuOpen(o => !o)}
+            title="Export / download"
+            className="text-forest-600 hover:text-forest-300 transition-colors cursor-pointer"
           >
             <Download size={13} />
           </button>
-        )}
+          {menuOpen && (
+            <div className="absolute right-0 top-5 z-20 flex flex-col w-40 rounded-md border border-forest-700 bg-forest-900 shadow-lg shadow-forest-950/40 py-1 text-[11px] text-forest-200">
+              <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { downloadCsv(getCsvRef.current(), session.name); setMenuOpen(false); }}>Table — CSV</button>
+              {isCV && (
+                <>
+                  <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { exportTablePng(); setMenuOpen(false); }}>Table — PNG</button>
+                  <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors disabled:opacity-50" disabled={busy} onClick={() => { exportTableXlsx(); setMenuOpen(false); }}>Table — XLSX</button>
+                  {hasSubPlots() && (
+                    <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors border-t border-forest-700 mt-1 pt-1.5" onClick={() => { exportSubPlots(); setMenuOpen(false); }}>Plots — PNG</button>
+                  )}
+                </>
+              )}
+              <div className="border-t border-forest-700 my-1" />
+              <div className="px-3 pt-0.5 pb-1 text-[10px] text-forest-500">For LLM analysis</div>
+              <button className="px-3 py-1.5 text-left hover:bg-forest-800 transition-colors" onClick={() => { handleLlmDownload(); setMenuOpen(false); }}>
+                Download .txt (values, formulas, data)
+              </button>
+            </div>
+          )}
+        </div>
 
         {!fsMode && (
           <button
@@ -250,9 +256,9 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
       {!file && (
         <div className="flex-1 flex items-center justify-center text-forest-500 text-sm">File not found</div>
       )}
-      {file && isCV  && <CVAnalysisPanel  file={file} files={files} getCsvRef={getCsvRef} getPlotRef={getPlotRef} getMetricRowsRef={getMetricRowsRef} />}
-      {file && isEIS && <EISAnalysisPanel file={file} getCsvRef={getCsvRef} />}
-      {file && isGCD && <GCDAnalysisPanel file={file} getCsvRef={getCsvRef} />}
+      {file && isCV  && <CVAnalysisPanel  file={file} files={files} getCsvRef={getCsvRef} getPlotRef={getPlotRef} getMetricRowsRef={getMetricRowsRef} getSummaryRef={getSummaryRef} />}
+      {file && isEIS && <EISAnalysisPanel file={file} getCsvRef={getCsvRef} getSummaryRef={getSummaryRef} />}
+      {file && isGCD && <GCDAnalysisPanel file={file} getCsvRef={getCsvRef} getSummaryRef={getSummaryRef} />}
     </>
   );
 

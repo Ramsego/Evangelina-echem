@@ -10,7 +10,7 @@ import { useZoom } from "../../hooks/useZoom";
 import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments, SummarySection } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, metaComments, metaLines, decimateRows, SummarySection, PanelSummary } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, parseScanRateMvs, interpolateLinear, shortName, computeExtents } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import { ELECTRODE_OPTIONS, refOffset, xAxisLabel } from "../../utils/referenceElectrodes";
@@ -90,6 +90,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   const vOffset   = refOffset(refFrom, refTo, pH);
   const imDivisor = normDivisor(norm, normVal);
   const yLabel    = norm === "area" ? "Current density (mA/cm²)" : norm === "mass" ? "Specific current (mA/g)" : "Current (mA)";
+  const jUnit     = norm === "area" ? "mA/cm²" : norm === "mass" ? "mA/g" : "mA";
   const xLabel    = xAxisLabel(refTo);
 
   const indices   = useMemo(
@@ -287,7 +288,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
   const rawLayout = useMemo((): Partial<Plotly.Layout> => ({
     ...LAYOUT_BASE,
     xaxis: { ...LAYOUT_BASE.xaxis, title: { text: xTitleOverride || xLabel, font: { color: "#74C69D" } }, ...axisOverride(xMin, xMax, xLog) },
-    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: yTitleOverride || (isLSV ? "log₁₀ |j| (mA/cm²)" : yLabel), font: { color: "#74C69D" } }, ...axisOverride(yMin, yMax, yLog) },
+    yaxis: { ...LAYOUT_BASE.yaxis, title: { text: yTitleOverride || (isLSV ? `log₁₀ |j| (${jUnit})` : yLabel), font: { color: "#74C69D" } }, ...axisOverride(yMin, yMax, yLog) },
     // Shaded band shows exactly which points entered the Tafel regression
     ...(isLSV && tafelQ.data?.success ? {
       shapes: [{
@@ -296,7 +297,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
         fillcolor: "rgba(82,183,136,0.12)", line: { width: 0 },
       }],
     } : {}),
-  }), [xTitleOverride, xLabel, xMin, xMax, xLog, yTitleOverride, isLSV, yLabel, yMin, yMax, yLog, tafelQ.data]);
+  }), [xTitleOverride, xLabel, xMin, xMax, xLog, yTitleOverride, isLSV, yLabel, jUnit, yMin, yMax, yLog, tafelQ.data]);
   const styledData   = useMemo(() => applyStyleToData(plotData, style),   [plotData, style]);
   const extents = useMemo(() => { const e = computeExtents(styledData); return e ? { ...e, xIsLog: xLog, yIsLog: yLog } : null; }, [styledData, xLog, yLog]);
   const { onRelayout, clamp, uirevision, plotKey } = useZoomClamp(extents, zoomOnRelayout, uiRevKey);
@@ -381,7 +382,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
     return [{ name: "Plotted", headers, units, rows }];
   }, [plottedColumns]);
 
-  const buildTxt = useCallback((): string => {
+  const buildSummary = useCallback((): PanelSummary => {
     const sections: SummarySection[] = [];
     const values: string[] = [
       `Scan rate: ${scanRate} mV/s${detectedRate != null ? " (from file metadata)" : " (user-entered)"}`,
@@ -448,35 +449,42 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
       }
     }
 
+    const { headers: dataHeaders, units: dataUnits, rows: dataRows } = plottedColumns();
+    const dataLines = dataRows.map(row => row.map(v => (v === null ? "" : v.toFixed(6))).join(","));
+    const { rows: dataSample, note: dataNote } = decimateRows(dataLines);
+
+    sections.push({ title: "Instrument metadata", lines: metaLines(file.metadata) });
     sections.push({ title: "Computed values", lines: values });
     sections.push({ title: "Warnings", lines: warnings.length ? warnings : ["(none)"] });
     sections.push({ title: "Definitions", lines: definitions });
-    return buildSummaryTxt(
-      file.name, isLSV ? "LSV" : "CV", sections,
-      `"I have ${isLSV ? "linear sweep voltammetry" : "cyclic voltammetry"} data from [describe your system: electrode, electrolyte,\nreference electrode, temperature]. The computed parameters and their formulas are above.\nPlease help me interpret these values, list possible explanations for any anomalies, and\nsuggest follow-up experiments to distinguish between them."`,
-    );
-  }, [file.name, isLSV, scanRate, detectedRate, vOffset, refFrom, refTo, norm, normVal, peaks, prom, pairs, cvQ.data, indices, caps, capVLo, capVHi, tafel, area]);
+    sections.push({ title: `Data table (${dataNote})`, lines: [dataHeaders.join(","), dataUnits.join(","), ...dataSample] });
+    return {
+      etypeLabel: isLSV ? "LSV" : "CV",
+      sections,
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this ${isLSV ? "linear sweep voltammetry" : "cyclic voltammetry"}\ndata (working electrode, electrolyte, reference electrode, counter electrode, scan rate\nconfirmation, temperature, experimental objective). Once sufficient context has been\nprovided, interpret the values quantitatively, explain any uncertainty, list possible\nexplanations for anomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
+  }, [isLSV, scanRate, detectedRate, vOffset, refFrom, refTo, norm, normVal, peaks, prom, pairs, cvQ.data, indices, caps, capVLo, capVHi, tafel, area, plottedColumns, file.metadata]);
 
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef = useRef<() => CollectResult>(() => ({ filename: '', csv: '', plotData: [], layout: {} }));
   const sheetsRef = useRef<() => ExportSheet[]>(() => []);
   sheetsRef.current = buildSheets;
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
-    if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledData, layout, file.name, fmt as "png" | "svg", style.exportShape);
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? file.name.replace(/\.dta$/i, "");
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, layout, stem, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),
     csv: buildCsv(),
-    txt: buildTxt(),
+    summary: buildSummary(),
     plotData: styledData,
     layout,
   });
 
   useEffect(() => {
-    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
+    register(file.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(file.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -662,7 +670,7 @@ export default function CVPanel({ file, allFiles, bgFileId, capVLo = "", capVHi 
               <input type="text" placeholder={xLabel} value={xTitleOverride} onChange={e => setXTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
               <span className="text-[10px] font-semibold text-panel-muted shrink-0">Y label</span>
-              <input type="text" placeholder={isLSV ? "log₁₀ |j| (mA/cm²)" : yLabel} value={yTitleOverride} onChange={e => setYTitleOverride(e.target.value)}
+              <input type="text" placeholder={isLSV ? `log₁₀ |j| (${jUnit})` : yLabel} value={yTitleOverride} onChange={e => setYTitleOverride(e.target.value)}
                      className={`flex-1 min-w-0 ${inputCls} text-[10px]`} />
             </div>
           </div>
