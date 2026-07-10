@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ParsedFile, EISResponse } from "../../types";
 import { analyzeEIS } from "../../api/client";
@@ -127,8 +127,8 @@ export default function EISAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <>
-                    <tr key={r.label} className={i % 2 === 0 ? "bg-panel-bg" : "bg-panel-bgalt"}>
+                  <Fragment key={r.label}>
+                    <tr className={i % 2 === 0 ? "bg-panel-bg" : "bg-panel-bgalt"}>
                       <td className={tdCls + " font-medium text-panel-muted"}>{r.label}</td>
                       <td className={tdCls}>{r.value}</td>
                       <td className={tdCls + " text-panel-muted"}>{r.unit}</td>
@@ -137,13 +137,13 @@ export default function EISAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
                       </td>
                     </tr>
                     {activeRow === r.label && (
-                      <tr key={`${r.label}-explain`} className="bg-panel-hl">
+                      <tr className="bg-panel-hl">
                         <td colSpan={4} className="px-3 py-2 text-[11px] text-panel-muted leading-relaxed border-b border-panel-hlbdr">
                           {EXPLAIN[r.label]}
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

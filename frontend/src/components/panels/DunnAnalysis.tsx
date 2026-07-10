@@ -75,7 +75,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
     return f ? (parseScanRateMvs(f.metadata?.SCANRATE) ?? null) : null;
   })();
 
-  const queryEnabled = runKey > 0 && validEntries.length >= 2 && targetSr != null;
+  const queryEnabled = runKey > 0 && validEntries.length >= 3 && targetSr != null;
 
   const queryBody = useMemo(() => {
     if (!queryEnabled) return null;
@@ -197,13 +197,14 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
     <div className="flex flex-col gap-2 px-3 py-2">
 
       {/* Info / guard messages */}
-      {allCvFiles.length < 2 && (
+      {allCvFiles.length < 3 && (
         <p className="text-[11px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-1.5">
-          Load CV files at at least two different scan rates to enable this analysis.
+          Load CV files at at least three different scan rates to enable this analysis —
+          with only two, the two-parameter fit is exact and the decomposition is not meaningful.
         </p>
       )}
 
-      {entries.length === 0 && allCvFiles.length >= 2 && (
+      {entries.length === 0 && allCvFiles.length >= 3 && (
         <p className="text-[11px] text-panel-muted italic">
           Add files measured at different scan rates using the dropdown below.
         </p>
@@ -317,7 +318,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
       {/* Run button */}
       <button
         onClick={() => setRunKey(k => k + 1)}
-        disabled={validEntries.length < 2}
+        disabled={validEntries.length < 3}
         className="self-start text-[11px] bg-forest-600 hover:bg-forest-700 text-white rounded px-3 py-1 disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default"
       >
         {isLoading ? "Running…" : runKey > 0 ? "Re-run" : "Run analysis"}

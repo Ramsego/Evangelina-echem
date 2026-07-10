@@ -226,10 +226,10 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
     if (fmtList.length === 0) return;
     setIsExporting(true);
     try {
-      if (fmtList.length === 1) {
+      const entries = collectAll();
+      if (fmtList.length === 1 && entries.length <= 1) {
         exportAll(fmtList[0]);
       } else {
-        const entries = collectAll();
         const defaultName = files[0]?.name.replace(/\.dta$/i, '') ?? "export";
         await buildZip(entries, fmtList, zipName || defaultName, globalStyle.exportShape);
       }

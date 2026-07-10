@@ -197,9 +197,11 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
     const lines: string[] = [];
     if (bValueData.oxFit) {
       lines.push(`b (oxidation): ${fmt(bValueData.oxFit.slope, 3)} (R² = ${fmt(bValueData.oxFit.r2, 3)}) [${EXPLAIN_SR_CSV}]`);
+      if (bValueData.oxPoints.length < 3) lines.push(`  warning: fit uses only ${bValueData.oxPoints.length} points — add more scan rates for a reliable fit`);
     }
     if (bValueData.redFit) {
       lines.push(`b (reduction): ${fmt(bValueData.redFit.slope, 3)} (R² = ${fmt(bValueData.redFit.r2, 3)})`);
+      if (bValueData.redPoints.length < 3) lines.push(`  warning: fit uses only ${bValueData.redPoints.length} points — add more scan rates for a reliable fit`);
     }
     if (!bValueData.oxFit && !bValueData.redFit) {
       lines.push("No peaks detected in selected files");
@@ -491,6 +493,14 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
               </tbody>
             </table>
           </div>
+
+          {((bValueData.oxFit && bValueData.oxPoints.length < 3) || (bValueData.redFit && bValueData.redPoints.length < 3)) && (
+            <p className="text-[11px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-1.5">
+              b-value fit uses only {Math.min(
+                ...[bValueData.oxFit ? bValueData.oxPoints.length : Infinity, bValueData.redFit ? bValueData.redPoints.length : Infinity]
+              )} points — add more scan rates for a reliable fit.
+            </p>
+          )}
 
           {(bValueData.oxPoints.length > 0 || bValueData.redPoints.length > 0) && (
             <div className="overflow-x-auto">

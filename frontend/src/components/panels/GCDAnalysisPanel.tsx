@@ -52,10 +52,11 @@ export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
   function buildCsv(): string {
     if (!data) return `# File: ${file.name}\n# Analysis: GCD\n# No data`;
     const d = data as GCDResponse;
+    const hasCE = d.ce_vals.some(v => v != null);
     const lines = [
       `# File: ${file.name}`,
       `# Analysis: GCD`,
-      `# Average CE: ${fmt(d.avg_ce, 2)} %  |  Capacity fade: ${fmt(d.fade_pct, 2)} %`,
+      `# Average CE: ${hasCE ? fmt(d.avg_ce, 2) + " %" : "— (no charge data)"}  |  Capacity fade: ${fmt(d.fade_pct, 2)} %`,
       `Cycle,Discharge cap (mAh),CE (%),Capacity retention (%),Explanation`,
     ];
     d.dis_mah.forEach((dis, i) => {
@@ -64,7 +65,7 @@ export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
       const exp = i === 0 ? `${EXPLAIN.dis} | ${EXPLAIN.ce} | ${EXPLAIN.ret}`.replace(/"/g, "'") : "";
       lines.push(`${gcd?.cycles[i] ?? i + 1},${fmt(dis, 4)},${fmt(ce, 2)},${fmt(ret, 2)},"${exp}"`);
     });
-    lines.push(`Summary,Avg CE: ${fmt(d.avg_ce, 2)} %,Fade: ${fmt(d.fade_pct, 2)} %,,""`);
+    lines.push(`Summary,Avg CE: ${hasCE ? fmt(d.avg_ce, 2) + " %" : "—"},Fade: ${fmt(d.fade_pct, 2)} %,,""`);
     return lines.join("\n");
   }
   getCsvRef.current = buildCsv;
@@ -72,12 +73,17 @@ export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
   const cycles = gcd?.cycles ?? [];
 
   function buildSummary(): PanelSummary {
+    const hasCE = data ? (data as GCDResponse).ce_vals.some(v => v != null) : false;
     const values = data
       ? [
-          `Average CE: ${fmt((data as GCDResponse).avg_ce, 2)}%  [CE = Q_dis/Q_ch × 100]`,
+          `Average CE: ${hasCE ? fmt((data as GCDResponse).avg_ce, 2) + "%" : "—"}  [CE = Q_dis/Q_ch × 100]`,
           `Capacity fade: ${fmt((data as GCDResponse).fade_pct, 2)}%  [fade over ${cycles.length} cycles vs cycle 1]`,
         ]
       : ["(analysis not available)"];
+
+    const warnings: string[] = [];
+    if (isError) warnings.push("Analysis failed");
+    if (data && !hasCE) warnings.push("charge data not present in file — CE not computed");
 
     const dataRows = data
       ? (data as GCDResponse).dis_mah.map((dis, i) => {
@@ -93,7 +99,7 @@ export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
       sections: [
         { title: "Instrument metadata", lines: metaLines(file.metadata) },
         { title: "Computed values", lines: values },
-        { title: "Warnings", lines: isError ? ["Analysis failed"] : ["(none)"] },
+        { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
         { title: "Definitions", lines: [`Discharge capacity: ${EXPLAIN.dis}`, `CE: ${EXPLAIN.ce}`, `Retention: ${EXPLAIN.ret}`] },
         { title: `Data table (${dataNote})`, lines: ["Cycle,DisCap (mAh),CE (%),Retention (%)", ...dataSample] },
       ],
@@ -157,7 +163,7 @@ export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Pro
                   <tr className="bg-panel-hl font-semibold border-t border-panel-border">
                     <td className={tdCls + " text-panel-muted"}>Summary</td>
                     <td className={tdCls}>—</td>
-                    <td className={tdCls}>Avg {fmt((data as GCDResponse).avg_ce, 2)}</td>
+                    <td className={tdCls}>Avg {(data as GCDResponse).ce_vals.some(v => v != null) ? fmt((data as GCDResponse).avg_ce, 2) : "—"}</td>
                     <td className={tdCls}>Fade {fmt((data as GCDResponse).fade_pct, 2)}%</td>
                   </tr>
                 </tbody>

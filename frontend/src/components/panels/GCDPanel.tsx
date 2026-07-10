@@ -356,29 +356,32 @@ export default function GCDPanel({ file }: Props) {
   }, [gcd, disMah, normalizedCap, ceVals, norm]);
 
   const buildCsv = useCallback((): string => {
+    const hasCE = ceVals.some((v: number | null) => v != null);
     const meta = [
       ...metaComments(file.metadata),
       ...(norm !== "none" ? [`# Normalised by ${norm === "area" ? `area: ${normVal} cm2` : `mass: ${normVal} mg`}`] : []),
-      ...(metrics ? [`# Fade: ${metrics.fade_pct.toFixed(1)}%  Avg CE: ${metrics.avg_ce.toFixed(1)}%`] : []),
+      ...(metrics ? [`# Fade: ${metrics.fade_pct.toFixed(1)}%  Avg CE: ${hasCE ? metrics.avg_ce.toFixed(1) + "%" : "— (no charge data)"}`] : []),
     ];
     const { headers, units, rows } = plottedRows();
     return [...meta, headers.join(","), units.join(","), ...rows].join("\n");
-  }, [plottedRows, normVal, metrics, file.metadata, norm]);
+  }, [plottedRows, normVal, metrics, file.metadata, norm, ceVals]);
 
   const buildSummary = (): PanelSummary => {
     const values: string[] = [];
     const warnings: string[] = [];
     if (metrics) {
+      const hasCE = ceVals.some((v: number | null) => v != null);
       values.push(
         `Cycles: ${gcd!.cycles.length} (${gcd!.cycles[0]}–${gcd!.cycles[gcd!.cycles.length - 1]})`,
         `First / last discharge capacity: ${disMah[0]?.toFixed(4)} / ${disMah[disMah.length - 1]?.toFixed(4)} mAh`,
         `Fade: ${metrics.fade_pct.toFixed(2)}%  [(Q_dis,1 − Q_dis,N) / Q_dis,1 × 100]`,
-        `Average CE: ${metrics.avg_ce.toFixed(2)}%  [CE = Q_dis / Q_ch × 100 per cycle]`,
+        `Average CE: ${hasCE ? metrics.avg_ce.toFixed(2) + "%" : "—"}  [CE = Q_dis / Q_ch × 100 per cycle]`,
         ...(metrics.avg_energy_eff != null
           ? [`Average energy efficiency η: ${metrics.avg_energy_eff.toFixed(2)}%  [η = E_dis / E_ch × 100 per cycle]`]
           : []),
         ...(norm !== "none" ? [`Normalisation: by ${norm} (${normVal} ${norm === "area" ? "cm²" : "mg"})`] : []),
       );
+      if (!hasCE) warnings.push("charge data not present in file — CE not computed");
       if (metrics.avg_energy_eff == null) warnings.push("charge energy not present in file — energy efficiency not computed");
     }
     if (esrResult) {
