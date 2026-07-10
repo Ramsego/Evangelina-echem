@@ -7,7 +7,7 @@ import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, decimateRows, PanelSummary } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import { useContainerSize } from "../../hooks/useContainerSize";
@@ -45,7 +45,7 @@ export default function GCDComparePanel({ comparison, files }: Props) {
   const [yTitleOverride, setYTitleOverride] = useState("");
 
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
   const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${norm}`;
@@ -54,7 +54,7 @@ export default function GCDComparePanel({ comparison, files }: Props) {
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
+    register(comparison.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -150,13 +150,50 @@ export default function GCDComparePanel({ comparison, files }: Props) {
     return [{ name: "Plotted", headers, units, rows }];
   }
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
-    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg", style.exportShape);
+  function buildSummary(): PanelSummary {
+    const visibleFiles = gcdFiles.filter(f => visible[f.id] !== false);
+    const filesCompared: string[] = [];
+    gcdFiles.forEach(file => {
+      const label = getLabel(file.id, file.name);
+      if (visible[file.id] === false) {
+        filesCompared.push(`- ${label}: hidden (excluded from data table)`);
+        return;
+      }
+      const gcd = file.gcd!;
+      const caps = gcd.discharge_caps;
+      const first = caps.length ? plottedCap(caps[0]).toFixed(3) : "—";
+      const last  = caps.length ? plottedCap(caps[caps.length - 1]).toFixed(3) : "—";
+      filesCompared.push(`- ${label}: ${gcd.cycles.length} cycles, discharge cap ${first}→${last} ${capUnit}`);
+    });
+
+    const settings: string[] = [];
+    if (norm !== "none") settings.push(`Normalisation: by ${norm} (${normVal} ${norm === "area" ? "cm²" : "mg"})`);
+
+    const { headers, units, rows } = plottedColumns();
+    const dataLines = rows.map(row => row.map(v => (v === null ? "" : v.toString())).join(","));
+    const { rows: dataSample, note: dataNote } = decimateRows(dataLines);
+
+    return {
+      etypeLabel: `GCD comparison (${visibleFiles.length} files)`,
+      sections: [
+        { title: "Files compared", lines: filesCompared },
+        { title: "Settings", lines: settings },
+        { title: "Warnings", lines: ["(none)"] },
+        { title: `Data table (${dataNote})`, lines: [headers.join(","), units.join(","), ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. This is an overlay comparison of\n${visibleFiles.length} galvanostatic charge–discharge cycling files. First ask the user for any missing\ninformation that could materially affect interpretation (what distinguishes the samples,\nchemistry, electrode, current/C-rate, voltage window, temperature, experimental\nobjective). Once sufficient context has been provided, compare the files quantitatively,\ndescribe where they differ, explain any uncertainty, list possible explanations for\nanomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
+  }
+
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? comparison.name;
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, layout, stem, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: comparison.name,
     csv:      buildCsv(),
+    summary:  buildSummary(),
     plotData: styledData,
     layout,
   });

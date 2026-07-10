@@ -16,7 +16,7 @@ import { useZoom } from "../hooks/useZoom";
 import { computeExtents } from "../utils/plotUtils";
 import { useZoomClamp } from "../hooks/useZoomClamp";
 import { useFileLabels } from "../context/FileLabelContext";
-import { buildZip, exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments } from "../utils/exportUtils";
+import { buildZip, exportPlotImage, downloadCsv, downloadTxt, buildSummaryTxt, metaComments, metaLines, decimateRows, PanelSummary } from "../utils/exportUtils";
 import { computeCE, computeSeesawEsr } from "../utils/ceUtils";
 import { useContainerSize } from "../hooks/useContainerSize";
 import Tooltip from "./Tooltip";
@@ -145,12 +145,12 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
   }
 
   async function handleDownload() {
-    const fmtList = [...fmts] as Array<"png" | "svg" | "csv" | "txt">;
+    const fmtList = [...fmts];
     if (fmtList.length === 0) return;
     setExporting(true);
     try {
       if (fmtList.length === 1) {
-        exportOne(file.id, fmtList[0]);
+        exportOne(file.id, fmtList[0], filename || undefined);
       } else {
         const entry = collectOne(file.id);
         if (entry) await buildZip([entry], fmtList, filename || file.name.replace(/\.dta$/i, ''), headerStyle.exportShape);
@@ -159,6 +159,14 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
       setExporting(false);
       setOpen(false);
     }
+  }
+
+  function handleLlmDownload() {
+    const summary = collectOne(file.id)?.summary;
+    if (!summary) return;
+    const text = buildSummaryTxt(file.name, summary.etypeLabel, summary.sections, summary.llmInstructions);
+    downloadTxt(text, filename || file.name.replace(/\.dta$/i, ""));
+    setOpen(false);
   }
 
   return (
@@ -232,9 +240,8 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
         {open && (
           <div className="absolute right-0 top-full mt-1 z-20 bg-forest-900 border border-forest-700 rounded shadow-lg p-2.5 min-w-[190px]">
             <div className="flex gap-3 mb-2">
-              {(["png", "svg", "csv", "txt"] as ExportFmt[]).map(f => (
-                <label key={f} className="flex items-center gap-1 cursor-pointer text-[11px] text-forest-300 select-none"
-                       title={f === "txt" ? "Analysis summary with values, formulas and definitions — paste into an LLM for interpretation" : undefined}>
+              {(["png", "svg", "csv"] as ExportFmt[]).map(f => (
+                <label key={f} className="flex items-center gap-1 cursor-pointer text-[11px] text-forest-300 select-none">
                   <input type="checkbox" checked={fmts.has(f)} onChange={() => toggleFmt(f)} className="accent-forest-400" />
                   {f.toUpperCase()}
                 </label>
@@ -252,6 +259,15 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
               className="w-full text-[10px] bg-forest-700 hover:bg-forest-600 text-forest-100 rounded px-2 py-1 disabled:opacity-40 transition-colors cursor-pointer"
             >
               {exporting ? "Exporting…" : fmts.size >= 2 ? "Download ZIP" : "Download"}
+            </button>
+
+            <div className="border-t border-forest-700 my-2" />
+            <div className="text-[10px] text-forest-500 mb-1.5">For LLM analysis</div>
+            <button
+              onClick={handleLlmDownload}
+              className="w-full text-[10px] bg-forest-800 hover:bg-forest-700 text-forest-300 border border-forest-700 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+            >
+              Download .txt (values, formulas, data)
             </button>
 
             {/* Origin-compatible export */}
@@ -311,7 +327,7 @@ function PanelHeader({ file, onRemove, isCollapsed, onToggleCollapse, onFullscre
         </button>
       </Tooltip>
 
-      <Tooltip content="Remove panel — file stays in the sidebar">
+      <Tooltip content="Remove file — also removes it from any comparisons and analyses">
         <button
           onClick={onRemove}
           onMouseDown={e => e.stopPropagation()}
@@ -471,21 +487,30 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
 
   // ── Export ───────────────────────────────────────────────────────────────
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: ExportFmt) => void>(() => {});
+  const handleExportRef = useRef<(fmt: ExportFmt, name?: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: '', csv: '', plotData: [], layout: {} }));
   useEffect(() => {
-    register(file.id, fmt => handleExportRef.current(fmt), () => collectRef.current());
+    register(file.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current());
     return () => unregister(file.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only registration, register/unregister are stable
+
+  const plottedRows = (): { headers: string[]; units: string[]; rows: string[] } => {
+    if (!data) return { headers: ["Time", "Voltage"], units: ["s", "V"], rows: [] };
+    return {
+      headers: ["Time", "Voltage"],
+      units:   ["s", "V"],
+      rows:    data.times.map((t, i) => `${t.toFixed(4)},${data.voltages[i].toFixed(6)}`),
+    };
+  };
 
   const buildCsv = (): string => {
     if (!data) return "";
     const meta = [...metaComments(file.metadata), `# Cycles ${qStart}-${qEnd}`];
-    const rows = data.times.map((t, i) => `${t.toFixed(4)},${data.voltages[i].toFixed(6)}`);
-    return [...meta, "Time,Voltage", "s,V", ...rows].join("\n");
+    const { headers, units, rows } = plottedRows();
+    return [...meta, headers.join(","), units.join(","), ...rows].join("\n");
   };
 
-  const buildTxt = (): string => {
+  const buildSummary = (): PanelSummary => {
     const values: string[] = [`Applied current: ${currentMA} mA (user-entered)`];
     const warnings: string[] = [];
     if (view === "vq" && ceResult) {
@@ -516,25 +541,31 @@ function SeesawPanel({ file, onRemove, isCollapsed, onToggleCollapse }: Props) {
       "  ΔV is measured 2 points either side of the transition to skip transients.",
       "  I is the user-entered current (mA); note this assumes a symmetric ±I step.",
     ];
-    return buildSummaryTxt(
-      file.name, "GCD cycles (SEESAW)", [
+    const { headers, units, rows } = plottedRows();
+    const { rows: dataSample, note: dataNote } = decimateRows(rows);
+
+    return {
+      etypeLabel: "GCD cycles (SEESAW)",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
         { title: "Computed values", lines: values },
         { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
         { title: "Definitions", lines: definitions },
+        { title: `Data table (${dataNote})`, lines: [headers.join(","), units.join(","), ...dataSample] },
       ],
-      `"I have galvanostatic cycling data from [describe your system: chemistry, electrode,\ncurrent/C-rate, voltage window]. The computed parameters and their formulas are above.\nPlease help me interpret these values, list possible explanations for any anomalies, and\nsuggest follow-up experiments to distinguish between them."`,
-    );
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this galvanostatic cycling data\n(chemistry, electrode, current/C-rate, voltage window, temperature, experimental\nobjective). Once sufficient context has been provided, interpret the values\nquantitatively, explain any uncertainty, list possible explanations for anomalies, and\nsuggest follow-up experiments to distinguish between them.`,
+    };
   };
 
-  handleExportRef.current = (fmt: ExportFmt) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), file.name); return; }
-    if (fmt === "txt") { downloadTxt(buildTxt(), file.name); return; }
-    exportPlotImage(styledData, finalLayout, file.name, fmt as "png" | "svg");
+  handleExportRef.current = (fmt: ExportFmt, name?: string) => {
+    const stem = name ?? file.name.replace(/\.dta$/i, "");
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, finalLayout, stem, fmt as "png" | "svg");
   };
   collectRef.current = () => ({
     filename: file.name.replace(/\.dta$/i, ''),
     csv: buildCsv(),
-    txt: buildTxt(),
+    summary: buildSummary(),
     plotData: styledData,
     layout: finalLayout,
   });

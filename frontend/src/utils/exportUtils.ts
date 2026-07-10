@@ -130,16 +130,37 @@ export interface SummarySection {
   lines: string[];
 }
 
+/** A panel's LLM-ready content, built once and reused for both the single-panel
+ *  and combined exports. */
+export interface PanelSummary {
+  etypeLabel:       string;
+  sections:         SummarySection[];
+  llmInstructions:  string;
+}
+
+const MAX_TABLE_ROWS = 80;
+
+/** Evenly sample a formatted CSV-row array down to maxRows, always keeping the last row. */
+export function decimateRows(rows: string[], maxRows: number = MAX_TABLE_ROWS): { rows: string[]; note: string } {
+  if (rows.length <= maxRows) return { rows, note: `${rows.length} points` };
+  const stride = Math.ceil(rows.length / maxRows);
+  const picked: string[] = [];
+  for (let i = 0; i < rows.length; i += stride) picked.push(rows[i]);
+  const last = rows[rows.length - 1];
+  if (picked[picked.length - 1] !== last) picked.push(last);
+  return { rows: picked, note: `${picked.length} of ${rows.length} points, every ${stride}` };
+}
+
 /**
  * Plain-text summary of computed values, formulas, data regions, warnings and
  * neutral parameter definitions — structured for pasting into an LLM.
  * Contains no interpretation.
  */
 export function buildSummaryTxt(
-  fileName:   string,
-  etypeLabel: string,
-  sections:   SummarySection[],
-  llmPrompt:  string,
+  fileName:        string,
+  etypeLabel:      string,
+  sections:        SummarySection[],
+  llmInstructions: string,
 ): string {
   const out: string[] = [
     `${APP_NAME} — Analysis Summary`,
@@ -151,7 +172,42 @@ export function buildSummaryTxt(
     if (sec.lines.length === 0) continue;
     out.push(`--- ${sec.title} ---`, "", ...sec.lines, "");
   }
-  out.push("--- Suggested LLM prompt ---", "", llmPrompt, "");
+  out.push("--- LLM Instructions ---", "", llmInstructions, "");
+  return out.join("\n");
+}
+
+/**
+ * One combined LLM-ready document spanning every summarized entry (e.g. all
+ * open panels), with one holistic instruction block instead of a per-technique one.
+ * Entries without a summary are skipped.
+ */
+export function buildCombinedSummaryTxt(
+  entries: Array<Pick<CollectResult, "filename" | "summary">>,
+): string | null {
+  const summarized = entries.filter(
+    (e): e is { filename: string; summary: PanelSummary } => e.summary != null,
+  );
+  if (summarized.length === 0) return null;
+
+  const techniques = [...new Set(summarized.map(e => e.summary.etypeLabel))];
+  const out: string[] = [
+    `${APP_NAME} — Combined Analysis Summary`,
+    "================================",
+    `Files: ${summarized.length}  |  Techniques: ${techniques.join(", ")}  |  Exported: ${new Date().toISOString().slice(0, 10)}`,
+    "",
+  ];
+  for (const { filename, summary } of summarized) {
+    out.push(`=== ${filename} — ${summary.etypeLabel} ===`, "");
+    for (const sec of summary.sections) {
+      if (sec.lines.length === 0) continue;
+      out.push(`--- ${sec.title} ---`, "", ...sec.lines, "");
+    }
+  }
+  out.push(
+    "--- LLM Instructions ---", "",
+    `Do not make assumptions about the experimental setup. These files are measurements of\nthe same material/system using different techniques (${techniques.join(", ")}). First ask\nthe user for any missing information that could materially affect interpretation\n(material/system, electrode, electrolyte, cell setup, temperature, experimental\nobjective). Once sufficient context has been provided, interpret the results across all\ntechniques together, note where they agree or disagree, explain any uncertainty, list\npossible explanations for anomalies, and suggest follow-up experiments to distinguish\nbetween them.`,
+    "",
+  );
   return out.join("\n");
 }
 
@@ -163,7 +219,7 @@ export function buildSummaryTxt(
  */
 export async function buildZip(
   entries: CollectResult[],
-  fmts:    Array<"png" | "svg" | "csv" | "txt">,
+  fmts:    Array<"png" | "svg" | "csv">,
   zipName: string,
   shape:   ExportShape = "wide",
 ): Promise<void> {
@@ -171,13 +227,11 @@ export async function buildZip(
   const zip   = new JSZip();
 
   await Promise.all(
-    entries.map(async ({ filename, csv, txt, plotData, layout }) => {
+    entries.map(async ({ filename, csv, plotData, layout }) => {
       const base = sanitize(filename);
       for (const fmt of fmts) {
         if (fmt === "csv") {
           zip.file(`${base}.csv`, csv);
-        } else if (fmt === "txt") {
-          if (txt) zip.file(`${base}_summary.txt`, txt);
         } else {
           const dataUrl = await exportPlotImageData(plotData, layout, fmt, shape);
           if (fmt === "svg") {
@@ -215,9 +269,13 @@ const META_LABELS: Record<string, string> = {
   NUMFREQ: "Num freq",  IRANGE: "I range",      IRCOMP: "IR comp",
 };
 
-export function metaComments(metadata?: Record<string, string>): string[] {
+export function metaLines(metadata?: Record<string, string>): string[] {
   if (!metadata || Object.keys(metadata).length === 0) return [];
   return Object.entries(metadata)
     .filter(([, v]) => v !== "")
-    .map(([k, v]) => `# ${META_LABELS[k] ?? k}: ${v}`);
+    .map(([k, v]) => `${META_LABELS[k] ?? k}: ${v}`);
+}
+
+export function metaComments(metadata?: Record<string, string>): string[] {
+  return metaLines(metadata).map(l => `# ${l}`);
 }

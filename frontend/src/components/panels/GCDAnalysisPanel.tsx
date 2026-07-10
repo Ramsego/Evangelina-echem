@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ParsedFile, GCDResponse } from "../../types";
 import { analyzeGCD } from "../../api/client";
+import { metaLines, decimateRows, PanelSummary } from "../../utils/exportUtils";
 
 interface Props {
   file:      ParsedFile;
   getCsvRef: React.MutableRefObject<() => string>;
+  getSummaryRef: React.MutableRefObject<() => PanelSummary | undefined>;
 }
 
 const EXPLAIN: Record<string, string> = {
@@ -30,7 +32,7 @@ function QBtn({ id, active, onToggle }: { id: string; active: boolean; onToggle:
   );
 }
 
-export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
+export default function GCDAnalysisPanel({ file, getCsvRef, getSummaryRef }: Props) {
   const gcd = file.gcd;
   const [colExplain, setColExplain] = useState<string | null>(null);
   const toggle = (id: string) => setColExplain(prev => prev === id ? null : id);
@@ -50,10 +52,11 @@ export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
   function buildCsv(): string {
     if (!data) return `# File: ${file.name}\n# Analysis: GCD\n# No data`;
     const d = data as GCDResponse;
+    const hasCE = d.ce_vals.some(v => v != null);
     const lines = [
       `# File: ${file.name}`,
       `# Analysis: GCD`,
-      `# Average CE: ${fmt(d.avg_ce, 2)} %  |  Capacity fade: ${fmt(d.fade_pct, 2)} %`,
+      `# Average CE: ${hasCE ? fmt(d.avg_ce, 2) + " %" : "— (no charge data)"}  |  Capacity fade: ${fmt(d.fade_pct, 2)} %`,
       `Cycle,Discharge cap (mAh),CE (%),Capacity retention (%),Explanation`,
     ];
     d.dis_mah.forEach((dis, i) => {
@@ -62,12 +65,48 @@ export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
       const exp = i === 0 ? `${EXPLAIN.dis} | ${EXPLAIN.ce} | ${EXPLAIN.ret}`.replace(/"/g, "'") : "";
       lines.push(`${gcd?.cycles[i] ?? i + 1},${fmt(dis, 4)},${fmt(ce, 2)},${fmt(ret, 2)},"${exp}"`);
     });
-    lines.push(`Summary,Avg CE: ${fmt(d.avg_ce, 2)} %,Fade: ${fmt(d.fade_pct, 2)} %,,""`);
+    lines.push(`Summary,Avg CE: ${hasCE ? fmt(d.avg_ce, 2) + " %" : "—"},Fade: ${fmt(d.fade_pct, 2)} %,,""`);
     return lines.join("\n");
   }
   getCsvRef.current = buildCsv;
 
   const cycles = gcd?.cycles ?? [];
+
+  function buildSummary(): PanelSummary {
+    const hasCE = data ? (data as GCDResponse).ce_vals.some(v => v != null) : false;
+    const values = data
+      ? [
+          `Average CE: ${hasCE ? fmt((data as GCDResponse).avg_ce, 2) + "%" : "—"}  [CE = Q_dis/Q_ch × 100]`,
+          `Capacity fade: ${fmt((data as GCDResponse).fade_pct, 2)}%  [fade over ${cycles.length} cycles vs cycle 1]`,
+        ]
+      : ["(analysis not available)"];
+
+    const warnings: string[] = [];
+    if (isError) warnings.push("Analysis failed");
+    if (data && !hasCE) warnings.push("charge data not present in file — CE not computed");
+
+    const dataRows = data
+      ? (data as GCDResponse).dis_mah.map((dis, i) => {
+          const ce  = (data as GCDResponse).ce_vals[i];
+          const ret = disMah0 != null && disMah0 > 0 ? (dis / disMah0) * 100 : null;
+          return `${cycles[i] ?? i + 1},${fmt(dis, 4)},${fmt(ce, 2)},${fmt(ret, 2)}`;
+        })
+      : [];
+    const { rows: dataSample, note: dataNote } = decimateRows(dataRows);
+
+    return {
+      etypeLabel: "GCD analysis",
+      sections: [
+        { title: "Instrument metadata", lines: metaLines(file.metadata) },
+        { title: "Computed values", lines: values },
+        { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
+        { title: "Definitions", lines: [`Discharge capacity: ${EXPLAIN.dis}`, `CE: ${EXPLAIN.ce}`, `Retention: ${EXPLAIN.ret}`] },
+        { title: `Data table (${dataNote})`, lines: ["Cycle,DisCap (mAh),CE (%),Retention (%)", ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. First ask the user for any missing\ninformation that could materially affect interpretation of this galvanostatic\ncharge–discharge analysis (chemistry, electrode, current/C-rate, voltage window,\ntemperature, experimental objective). Once sufficient context has been provided, interpret\nthe values quantitatively, explain any uncertainty, list possible explanations for\nanomalies, and suggest follow-up experiments to distinguish between them.`,
+    };
+  }
+  getSummaryRef.current = buildSummary;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -124,7 +163,7 @@ export default function GCDAnalysisPanel({ file, getCsvRef }: Props) {
                   <tr className="bg-panel-hl font-semibold border-t border-panel-border">
                     <td className={tdCls + " text-panel-muted"}>Summary</td>
                     <td className={tdCls}>—</td>
-                    <td className={tdCls}>Avg {fmt((data as GCDResponse).avg_ce, 2)}</td>
+                    <td className={tdCls}>Avg {(data as GCDResponse).ce_vals.some(v => v != null) ? fmt((data as GCDResponse).avg_ce, 2) : "—"}</td>
                     <td className={tdCls}>Fade {fmt((data as GCDResponse).fade_pct, 2)}%</td>
                   </tr>
                 </tbody>

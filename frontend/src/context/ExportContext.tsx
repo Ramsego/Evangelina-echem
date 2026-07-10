@@ -1,11 +1,12 @@
 import { createContext, useContext, useRef } from "react";
+import type { PanelSummary } from "../utils/exportUtils";
 
-export type ExportFmt = "png" | "svg" | "csv" | "txt";
+export type ExportFmt = "png" | "svg" | "csv";
 
 export interface CollectResult {
   filename: string;          // base name without extension
   csv:      string;
-  txt?:     string;          // LLM-ready analysis summary
+  summary?: PanelSummary;    // LLM-ready analysis summary
   plotData: Plotly.Data[];
   layout:   Partial<Plotly.Layout>;
 }
@@ -18,7 +19,7 @@ export interface ExportSheet {
   rows:    (string | number | null)[][];
 }
 
-type ExportFn  = (fmt: ExportFmt) => void;
+type ExportFn  = (fmt: ExportFmt, filename?: string) => void;
 type CollectFn = () => CollectResult;
 type SheetsFn  = () => ExportSheet[];
 
@@ -31,7 +32,7 @@ interface PanelEntry {
 interface ExportContextValue {
   register:   (id: string, exportFn: ExportFn, collectFn: CollectFn, buildSheets?: SheetsFn) => void;
   unregister: (id: string) => void;
-  exportOne:  (id: string, fmt: ExportFmt) => void;
+  exportOne:  (id: string, fmt: ExportFmt, filename?: string) => void;
   exportAll:  (fmt: ExportFmt) => void;
   collectOne: (id: string) => CollectResult | undefined;
   collectAll: () => CollectResult[];
@@ -48,8 +49,8 @@ export function ExportProvider({ children }: { children: React.ReactNode }) {
 
   const unregister = (id: string) => registry.current.delete(id);
 
-  const exportOne = (id: string, fmt: ExportFmt) =>
-    registry.current.get(id)?.exportFn(fmt);
+  const exportOne = (id: string, fmt: ExportFmt, filename?: string) =>
+    registry.current.get(id)?.exportFn(fmt, filename);
 
   const exportAll = (fmt: ExportFmt) => {
     let delay = 0;

@@ -7,7 +7,7 @@ import { fetchSample, uploadFiles } from "../api/client";
 import { useFileLabels } from "../context/FileLabelContext";
 import { StyleSettings, PALETTES, FRAMEWORKS, FONT_FAMILIES, MARKER_SHAPES, DEFAULT_STYLE } from "../styles/styleTypes";
 import { useExportContext, ExportFmt } from "../context/ExportContext";
-import { buildZip } from "../utils/exportUtils";
+import { buildZip, buildCombinedSummaryTxt, downloadTxt } from "../utils/exportUtils";
 import { useStyleContext } from "../context/StyleContext";
 import { useTheme, UITheme } from "../context/ThemeContext";
 import { APP_NAME } from "../constants";
@@ -101,6 +101,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
   const [exportFmts,  setExportFmts]  = useState<Set<ExportFmt>>(new Set());
   const [zipName,     setZipName]     = useState("");
   const [isExporting, setIsExporting] = useState(false);
+  const [llmNote,     setLlmNote]     = useState<string | null>(null);
   const exportWrapRef = useRef<HTMLDivElement>(null);
 
   // ── Compare state ────────────────────────────────────────────────────────
@@ -221,14 +222,14 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
   }
 
   async function handleExportAll() {
-    const fmtList = [...exportFmts] as Array<"png" | "svg" | "csv">;
+    const fmtList = [...exportFmts];
     if (fmtList.length === 0) return;
     setIsExporting(true);
     try {
-      if (fmtList.length === 1) {
+      const entries = collectAll();
+      if (fmtList.length === 1 && entries.length <= 1) {
         exportAll(fmtList[0]);
       } else {
-        const entries = collectAll();
         const defaultName = files[0]?.name.replace(/\.dta$/i, '') ?? "export";
         await buildZip(entries, fmtList, zipName || defaultName, globalStyle.exportShape);
       }
@@ -237,6 +238,14 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
       setExportOpen(false);
     }
   }
+
+  function handleLlmDownloadAll() {
+    const text = buildCombinedSummaryTxt(collectAll());
+    if (!text) { setLlmNote("No analysis summaries in open panels"); return; }
+    downloadTxt(text, "combined_analysis");
+    setExportOpen(false);
+  }
+
   const [styleOpen,   setStyleOpen]   = useState(true);
   const [openSec,     setOpenSec]     = useState<Record<string, boolean>>({
     lines: true, axes: false, grid: false, text: false, legend: false,
@@ -327,7 +336,7 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
               {/* Export all dropdown */}
               <div ref={exportWrapRef} className="relative">
                 <button
-                  onClick={() => setExportOpen(o => !o)}
+                  onClick={() => { setExportOpen(o => !o); setLlmNote(null); }}
                   className="flex items-center gap-0.5 text-[10px] text-sidebar-muted hover:text-sidebar-text transition-colors"
                   title="Export all panels"
                 >
@@ -360,6 +369,16 @@ export default function Sidebar({ files, comparisons, onFilesAdded, onFileRemove
                     >
                       {isExporting ? "Exporting…" : exportFmts.size >= 2 ? "Export ZIP" : "Export all"}
                     </button>
+
+                    <div className="border-t border-gray-300 my-2" />
+                    <div className="text-[10px] text-gray-500 mb-1.5">For LLM analysis (all open panels)</div>
+                    <button
+                      onClick={handleLlmDownloadAll}
+                      className="w-full text-[10px] bg-white hover:border-forest-400 text-gray-700 border border-gray-300 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+                    >
+                      Download combined .txt
+                    </button>
+                    {llmNote && <p className="text-[10px] text-gray-500 mt-1.5 leading-tight">{llmNote}</p>}
                   </div>
                 )}
               </div>

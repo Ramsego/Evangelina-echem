@@ -7,6 +7,7 @@ import { useFileLabels } from "../../context/FileLabelContext";
 import { useStyle } from "../../context/StyleContext";
 import { applyStyleToData, applyStyleToLayout } from "../../utils/applyStyle";
 import { PALETTES } from "../../styles/styleTypes";
+import { decimateRows } from "../../utils/exportUtils";
 import ClampedPlot from "../ClampedPlot";
 
 export interface DunnPlotExport {
@@ -33,9 +34,10 @@ interface Props {
   allCvFiles:    ParsedFile[];
   getDunnCsvRef: React.MutableRefObject<() => string>;
   getDunnPlotRef: React.MutableRefObject<() => DunnPlotExport | null>;
+  getDunnSummaryRef: React.MutableRefObject<() => string[]>;
 }
 
-export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef }: Props) {
+export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef, getDunnSummaryRef }: Props) {
   const style    = useStyle();
   const { getLabel } = useFileLabels();
 
@@ -73,7 +75,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
     return f ? (parseScanRateMvs(f.metadata?.SCANRATE) ?? null) : null;
   })();
 
-  const queryEnabled = runKey > 0 && validEntries.length >= 2 && targetSr != null;
+  const queryEnabled = runKey > 0 && validEntries.length >= 3 && targetSr != null;
 
   const queryBody = useMemo(() => {
     if (!queryEnabled) return null;
@@ -131,6 +133,26 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
 
   getDunnCsvRef.current = buildDunnCsv;
 
+  function buildDunnSummary(): string[] {
+    if (!data) return [];
+    const lines: string[] = [
+      `Target scan rate: ${targetSr} mV/s`,
+      `Capacitive fraction: ${fmt(data.cap_fraction * 100, 1)}%`,
+      `Diffusion fraction: ${fmt(data.diff_fraction * 100, 1)}%`,
+      `Regression R² (mean): ${fmt(data.r2_mean, 3)}`,
+      `[${EXPLAIN_DUNN}]`,
+      "",
+    ];
+    const decompRows = data.voltages.map((v, i) =>
+      `${v.toFixed(5)},${data.i_total[i].toFixed(5)},${data.i_cap[i].toFixed(5)},${data.i_diff[i].toFixed(5)}`
+    );
+    const { rows: decompSample, note: decompNote } = decimateRows(decompRows);
+    lines.push(`Decomposition (${decompNote}):`, "V (V),i_total (mA),i_cap (mA),i_diff (mA)", ...decompSample);
+    return lines;
+  }
+
+  getDunnSummaryRef.current = buildDunnSummary;
+
   const dunnPlot = useMemo((): DunnPlotExport | null => {
     if (!data) return null;
     const palette = style.customPalette ?? PALETTES[style.colorScheme] ?? PALETTES["Forest"];
@@ -175,13 +197,14 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
     <div className="flex flex-col gap-2 px-3 py-2">
 
       {/* Info / guard messages */}
-      {allCvFiles.length < 2 && (
+      {allCvFiles.length < 3 && (
         <p className="text-[11px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-1.5">
-          Load CV files at at least two different scan rates to enable this analysis.
+          Load CV files at at least three different scan rates to enable this analysis —
+          with only two, the two-parameter fit is exact and the decomposition is not meaningful.
         </p>
       )}
 
-      {entries.length === 0 && allCvFiles.length >= 2 && (
+      {entries.length === 0 && allCvFiles.length >= 3 && (
         <p className="text-[11px] text-panel-muted italic">
           Add files measured at different scan rates using the dropdown below.
         </p>
@@ -295,7 +318,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
       {/* Run button */}
       <button
         onClick={() => setRunKey(k => k + 1)}
-        disabled={validEntries.length < 2}
+        disabled={validEntries.length < 3}
         className="self-start text-[11px] bg-forest-600 hover:bg-forest-700 text-white rounded px-3 py-1 disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default"
       >
         {isLoading ? "Running…" : runKey > 0 ? "Re-run" : "Run analysis"}

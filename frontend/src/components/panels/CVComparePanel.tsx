@@ -7,7 +7,7 @@ import { useStyle, useStyleContext } from "../../context/StyleContext";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { applyStyleToData, applyStyleToLayout, resolveLegendFontSize } from "../../utils/applyStyle";
 import { useExportContext, CollectResult, ExportSheet } from "../../context/ExportContext";
-import { exportPlotImage, downloadCsv } from "../../utils/exportUtils";
+import { exportPlotImage, downloadCsv, decimateRows, PanelSummary } from "../../utils/exportUtils";
 import { LAYOUT_BASE, axisOverride, parseScanRateMvs, computeExtents, shortNames } from "../../utils/plotUtils";
 import { useZoomClamp } from "../../hooks/useZoomClamp";
 import { ELECTRODE_OPTIONS, refOffset, xAxisLabel } from "../../utils/referenceElectrodes";
@@ -64,7 +64,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
   const xLabel    = xAxisLabel(refTo);
 
   const { register, unregister } = useExportContext();
-  const handleExportRef = useRef<(fmt: string) => void>(() => {});
+  const handleExportRef = useRef<(fmt: string, name?: string) => void>(() => {});
   const collectRef      = useRef<() => CollectResult>(() => ({ filename: "", csv: "", plotData: [], layout: {} }));
   const sheetsRef       = useRef<() => ExportSheet[]>(() => []);
   const uiRevKey = `${comparison.id}-${norm}-${refFrom}-${refTo}`;
@@ -73,7 +73,7 @@ export default function CVComparePanel({ comparison, files }: Props) {
   const { setLegendAutoSize } = useStyleContext();
 
   useEffect(() => {
-    register(comparison.id, fmt => handleExportRef.current(fmt), () => collectRef.current(), () => sheetsRef.current());
+    register(comparison.id, (fmt, name) => handleExportRef.current(fmt, name), () => collectRef.current(), () => sheetsRef.current());
     return () => unregister(comparison.id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- register/unregister are stable (backed by useRef in ExportProvider); mount-only registration is intentional
 
@@ -198,13 +198,68 @@ export default function CVComparePanel({ comparison, files }: Props) {
     return [{ name: "Plotted", headers, units, rows }];
   }
 
-  handleExportRef.current = (fmt: string) => {
-    if (fmt === "csv") { downloadCsv(buildCsv(), comparison.name); return; }
-    exportPlotImage(styledData, layout, comparison.name, fmt as "png" | "svg", style.exportShape);
+  function buildSummary(): PanelSummary {
+    const isSrNorm = norm === "scan_rate" || norm === "sqrt_scan_rate" || norm === "bv";
+    const filesCompared: string[] = [];
+    const warnings: string[] = [];
+    let visibleCount = 0;
+
+    comparison.selections.forEach(sel => {
+      const file = fileMap[sel.fileId];
+      if (!file?.curves?.length) return;
+      const label = getLabel(file.id, file.name);
+      const isVisible = visible[sel.fileId] !== false;
+      const cycleN = Math.min(Math.max(1, cycles[sel.fileId] ?? 1), file.curves.length);
+      const sr = parseScanRateMvs(file.metadata?.SCANRATE) ?? manualRates[sel.fileId] ?? null;
+      if (!isVisible) {
+        filesCompared.push(`- ${label}: hidden (excluded from data table)`);
+        return;
+      }
+      visibleCount++;
+      filesCompared.push(`- ${label}: cycle ${cycleN}/${file.curves.length}, ${sr != null ? `${sr} mV/s` : "scan rate unknown"}`);
+      if (isSrNorm && sr == null) {
+        warnings.push(`${label} excluded from ν-normalised traces (no scan rate)`);
+      }
+    });
+
+    const settings: string[] = [];
+    if (vOffset !== 0) {
+      settings.push(`Reference conversion: ${refFrom} → ${refTo} (offset ${vOffset >= 0 ? "+" : ""}${vOffset.toFixed(3)} V)`);
+    }
+    if (norm !== "none") {
+      const normDesc = norm === "area"           ? `by area (${normVal} cm²)`
+                      : norm === "mass"           ? `by mass (${normVal} mg)`
+                      : norm === "scan_rate"      ? "current divided by ν"
+                      : norm === "sqrt_scan_rate" ? "current divided by √ν"
+                      :                             `current divided by ν^${bExp}`;
+      settings.push(`Normalisation: ${normDesc}`);
+    }
+
+    const { headers, units, rows } = plottedColumns();
+    const dataLines = rows.map(row => row.map(v => (v === null ? "" : v.toFixed(6))).join(","));
+    const { rows: dataSample, note: dataNote } = decimateRows(dataLines);
+
+    return {
+      etypeLabel: `CV comparison (${visibleCount} files)`,
+      sections: [
+        { title: "Files compared", lines: filesCompared },
+        { title: "Settings", lines: settings },
+        { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
+        { title: `Data table (${dataNote})`, lines: [headers.join(","), units.join(","), ...dataSample] },
+      ],
+      llmInstructions: `Do not make assumptions about the experimental setup. This is an overlay comparison of\n${visibleCount} cyclic voltammetry files. First ask the user for any missing information that\ncould materially affect interpretation (what distinguishes the samples, working electrode,\nelectrolyte, reference electrode, temperature, experimental objective). Once sufficient\ncontext has been provided, compare the files quantitatively, describe where they differ,\nexplain any uncertainty, list possible explanations for anomalies, and suggest follow-up\nexperiments to distinguish between them.`,
+    };
+  }
+
+  handleExportRef.current = (fmt: string, name?: string) => {
+    const stem = name ?? comparison.name;
+    if (fmt === "csv") { downloadCsv(buildCsv(), stem); return; }
+    exportPlotImage(styledData, layout, stem, fmt as "png" | "svg", style.exportShape);
   };
   collectRef.current = () => ({
     filename: comparison.name,
     csv:      buildCsv(),
+    summary:  buildSummary(),
     plotData: styledData,
     layout,
   });
