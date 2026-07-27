@@ -6,6 +6,7 @@ import {
   EISResponse,
   GCDRequest, GCDResponse,
   DunnRequest, DunnResponse,
+  BValueProfileRequest, BValueProfileResponse,
   EISData,
 } from "../types";
 
@@ -79,6 +80,10 @@ export async function analyzeGCD(body: GCDRequest): Promise<GCDResponse> {
 
 export async function analyzeDunn(body: DunnRequest): Promise<DunnResponse> {
   return post(`${ANALYZE}/dunn`, body);
+}
+
+export async function analyzeBValueProfile(body: BValueProfileRequest): Promise<BValueProfileResponse> {
+  return post(`${ANALYZE}/bvalue-profile`, body);
 }
 
 export interface CycleSegment {

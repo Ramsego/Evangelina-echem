@@ -227,7 +227,7 @@ export async function buildZip(
   const zip   = new JSZip();
 
   await Promise.all(
-    entries.map(async ({ filename, csv, plotData, layout }) => {
+    entries.map(async ({ filename, csv, plotData, layout, extraPlots }) => {
       const base = sanitize(filename);
       for (const fmt of fmts) {
         if (fmt === "csv") {
@@ -240,6 +240,15 @@ export async function buildZip(
           } else {
             const b64 = dataUrl.split(",")[1] ?? "";
             zip.file(`${base}.png`, b64, { base64: true });
+          }
+          for (const extra of extraPlots ?? []) {
+            const extraUrl = await exportPlotImageData(extra.data, extra.layout, fmt, shape);
+            const extraBase = `${base}_${extra.name}`;
+            if (fmt === "svg") {
+              zip.file(`${extraBase}.svg`, decodeURIComponent(extraUrl.split(",")[1] ?? extraUrl));
+            } else {
+              zip.file(`${extraBase}.png`, extraUrl.split(",")[1] ?? "", { base64: true });
+            }
           }
         }
       }

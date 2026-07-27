@@ -15,7 +15,7 @@
     },
     {
       "name": "backend",
-      "runtimeExecutable": "uvicorn",
+      "runtimeExecutable": "/Users/sebastiangonzalezramirez/Desktop/gamry-dashboard/backend/.venv/bin/uvicorn",
       "runtimeArgs": [
         "main:app",
         "--app-dir",

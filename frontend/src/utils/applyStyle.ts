@@ -23,19 +23,26 @@ function textColor(hex: string): string {
 }
 
 
-export function applyStyleToData(data: Plotly.Data[], style: StyleSettings): Plotly.Data[] {
+export type StyledTrace = Plotly.Data & { fixedColor?: string };
+
+export function applyStyleToData(data: StyledTrace[], style: StyleSettings): Plotly.Data[] {
   const palette = style.customPalette ?? PALETTES[style.colorScheme] ?? PALETTES["Forest"];
   let colorIdx = 0;
 
   return data.map((trace) => {
     const t = { ...trace } as Record<string, unknown>;
     const mode = (t.mode as string) ?? "";
+    const fixedColor = t.fixedColor as string | undefined;
 
-    const color = palette[colorIdx % palette.length];
-    colorIdx++;
-
-    if (t.line)   t.line   = { ...(t.line   as object), color };
-    if (t.marker) t.marker = { ...(t.marker as object), color };
+    if (fixedColor) {
+      if (t.line)   t.line   = { ...(t.line   as object), color: fixedColor };
+      if (t.marker) t.marker = { ...(t.marker as object), color: fixedColor };
+    } else {
+      const color = palette[colorIdx % palette.length];
+      colorIdx++;
+      if (t.line)   t.line   = { ...(t.line   as object), color };
+      if (t.marker) t.marker = { ...(t.marker as object), color };
+    }
 
     // Line settings — skip pure-marker traces (peak annotations, etc.)
     if (mode !== "markers" && t.line) {

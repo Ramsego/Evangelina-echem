@@ -73,12 +73,17 @@ function AnalysisPanel({ session, files, onRemove, isCollapsed, onToggleCollapse
   collectRef.current = () => {
     const plots = getPlotRef.current();
     const firstPlot = plots.dunn ?? plots.sr[0] ?? null;
+    const rest = [
+      ...(plots.dunn ? [{ name: "dunn", data: plots.dunn.data, layout: plots.dunn.layout }] : []),
+      ...plots.sr.map(p => ({ name: p.name, data: p.data, layout: p.layout })),
+    ].filter(p => p.data !== firstPlot?.data);
     return {
       filename: session.name.replace(/\.dta$/i, ""),
       csv:      getCsvRef.current(),
       summary:  getSummaryRef.current(),
       plotData: firstPlot?.data ?? [],
       layout:   firstPlot?.layout ?? {},
+      extraPlots: rest,
     };
   };
 

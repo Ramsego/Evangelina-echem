@@ -5,7 +5,7 @@ import { analyzeDunn } from "../../api/client";
 import { parseScanRateMvs, LAYOUT_BASE } from "../../utils/plotUtils";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { useStyle } from "../../context/StyleContext";
-import { applyStyleToData, applyStyleToLayout } from "../../utils/applyStyle";
+import { applyStyleToData, applyStyleToLayout, StyledTrace } from "../../utils/applyStyle";
 import { PALETTES } from "../../styles/styleTypes";
 import { decimateRows } from "../../utils/exportUtils";
 import ClampedPlot from "../ClampedPlot";
@@ -158,7 +158,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
     const palette = style.customPalette ?? PALETTES[style.colorScheme] ?? PALETTES["Forest"];
     const c0 = palette[0] ?? "#45d0bf";
     const c1 = palette[1] ?? "#fb923c";
-    const rawData: Plotly.Data[] = [
+    const rawData: StyledTrace[] = [
       {
         x: data.voltages, y: data.i_cap,
         type: "scatter" as const, mode: "lines" as const,
@@ -178,6 +178,7 @@ export default function DunnAnalysis({ allCvFiles, getDunnCsvRef, getDunnPlotRef
         type: "scatter" as const, mode: "lines" as const,
         name: "Total CV",
         line: { color: "rgba(180,180,180,0.9)", width: 2 },
+        fixedColor: "rgba(180,180,180,0.9)",
       },
     ];
     return {

@@ -195,3 +195,21 @@ export interface DunnResponse {
   i_cap:         number[]
   i_diff:        number[]
 }
+
+export interface BValueProfileRequest {
+  entries:     DunnEntry[]
+  v_offset?:   number
+  im_divisor?: number
+  n_points?:   number
+}
+
+export interface BValueBranch {
+  voltages: number[]
+  b:        (number | null)[]
+  r2:       (number | null)[]
+}
+
+export interface BValueProfileResponse {
+  anodic:   BValueBranch | null
+  cathodic: BValueBranch | null
+}

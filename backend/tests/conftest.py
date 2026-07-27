@@ -114,3 +114,26 @@ def dunn_entries(k1: float, k2: float, rates_mv=(10, 20, 50, 100), v_lo=0.0, v_h
         im_amps = [i_mA / 1000.0] * len(vf)
         entries.append({"vf": vf, "im": im_amps, "scan_rate_mv": float(rate)})
     return entries
+
+
+def bvalue_entries(b_true: float, rates_mv=(5, 10, 20, 50, 100), v_lo=0.0, v_hi=1.0, n=100):
+    """Build synthetic CV entries obeying i(V, ν) = (0.5 + V)·ν^b_true exactly, so
+    the recovered b(V) should equal b_true everywhere and r2 should be ~1.
+
+    The V-dependent prefactor (0.5 + V) matters, not its value — it is what
+    forces the fit to be re-done independently at each voltage rather than
+    collapsing to a single global b. Unlike dunn_entries, the vertex point is
+    not duplicated between the up/down legs — a repeated point there gives
+    _split_cv_sweeps a zero-slope sample that throws off its sign-change
+    detection and collapses the cathodic branch to a couple of points, which
+    is invisible for dunn_entries (constant current) but not here.
+    """
+    entries = []
+    for rate in rates_mv:
+        nu = rate / 1000.0  # mV/s -> V/s
+        v_up   = [v_lo + (v_hi - v_lo) * i / (n - 1) for i in range(n)]
+        v_down = list(reversed(v_up))[1:]
+        vf = v_up + v_down
+        im_amps = [(0.5 + v) * (nu ** b_true) / 1000.0 for v in vf]
+        entries.append({"vf": vf, "im": im_amps, "scan_rate_mv": float(rate)})
+    return entries
