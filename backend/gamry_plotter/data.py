@@ -249,12 +249,19 @@ def _split_cv_sweeps(
     t1 = int(sign_changes[0])
     t2 = int(sign_changes[1]) if len(sign_changes) > 1 else len(vf) - 1
 
-    # Use copies — slices share memory with vf, so sorting cat_v in-place would
-    # overwrite vf[t1] (the shared boundary point) and corrupt an_v's last element.
-    an_v  = vf[:t1 + 1].copy()
-    an_i  = im_ma[:t1 + 1].copy()
-    cat_v = vf[t1:t2 + 1].copy()
-    cat_i = im_ma[t1:t2 + 1].copy()
+    # Use copies — slices share memory with vf, so sorting seg2_v in-place would
+    # overwrite vf[t1] (the shared boundary point) and corrupt seg1_v's last element.
+    seg1_v = vf[:t1 + 1].copy()
+    seg1_i = im_ma[:t1 + 1].copy()
+    seg2_v = vf[t1:t2 + 1].copy()
+    seg2_i = im_ma[t1:t2 + 1].copy()
+
+    # Assign by actual sweep direction, not time order — a cycle may start on
+    # either the ascending or descending half (e.g. +1 → -1 → +1).
+    if seg1_v[-1] >= seg1_v[0]:
+        an_v, an_i, cat_v, cat_i = seg1_v, seg1_i, seg2_v, seg2_i
+    else:
+        an_v, an_i, cat_v, cat_i = seg2_v, seg2_i, seg1_v, seg1_i
 
     an_ord  = np.argsort(an_v)
     cat_ord = np.argsort(cat_v)
@@ -399,6 +406,94 @@ def compute_dunn_analysis(
         'i_total':       all_i_total,
         'i_cap':         all_i_cap,
         'i_diff':        all_i_diff,
+    }
+
+
+def _bvalue_regression(
+    sweeps: list[tuple[np.ndarray, np.ndarray]],
+    log_rates: np.ndarray,
+    n_points: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """
+    At each potential on a common voltage grid, fit log|i| = b·log(ν) + log(a)
+    across all scan rates to obtain the power-law exponent b(V).
+
+    The fit uses current magnitudes only — sign carries no information the
+    power law can use, and log of a negative number is undefined. Points where
+    any entry's current is ~0 (log blows up) are left as NaN.
+
+    Returns (v_grid, b, r2).
+    """
+    v_lo = max(float(np.min(v)) for v, _ in sweeps)
+    v_hi = min(float(np.max(v)) for v, _ in sweeps)
+    if v_lo >= v_hi:
+        return None
+
+    v_grid = np.linspace(v_lo, v_hi, n_points)
+    i_grid = np.array([
+        np.interp(v_grid, v, i) for v, i in sweeps
+    ])  # shape (n_entries, n_points)
+
+    b     = np.full(n_points, np.nan)
+    r2arr = np.full(n_points, np.nan)
+
+    for idx in range(n_points):
+        y = i_grid[:, idx]
+        if np.min(np.abs(y)) < 1e-9:
+            continue
+        log_i  = np.log10(np.abs(y))
+        coeffs = np.polyfit(log_rates, log_i, 1)
+        b[idx] = coeffs[0]
+        y_pred = np.polyval(coeffs, log_rates)
+        ss_res = float(np.sum((log_i - y_pred) ** 2))
+        ss_tot = float(np.sum((log_i - float(np.mean(log_i))) ** 2))
+        r2arr[idx] = 1.0 - ss_res / ss_tot if ss_tot > 1e-15 else 1.0
+
+    return v_grid, b, r2arr
+
+
+def compute_bvalue_profile(
+    entries: list[dict],
+    v_offset: float = 0.0,
+    im_divisor: float = 1.0,
+    n_points: int = 200,
+) -> dict:
+    """
+    Power-law (Lindström) exponent b(V), resolved across the whole sweep:
+    fits log|i(V,ν)| = b(V)·log(ν) + log(a(V)) at every potential, using the
+    same multi-scan-rate entries as the Dunn decomposition.
+    b ≈ 1 → surface-controlled; b ≈ 0.5 → semi-infinite diffusion.
+
+    Entries: list of {'vf': [...], 'im': [...], 'scan_rate_mv': float}.
+    Returns {'anodic': {...} | None, 'cathodic': {...} | None}, each branch a
+    dict of voltages/b/r2 arrays; b/r2 are None where any entry's current is
+    ~0 (log undefined).
+    """
+    scan_rates_vs = np.array([e['scan_rate_mv'] / 1000.0 for e in entries])
+    log_rates     = np.log10(scan_rates_vs)
+
+    anodic:   list[tuple[np.ndarray, np.ndarray]] = []
+    cathodic: list[tuple[np.ndarray, np.ndarray]] = []
+    for e in entries:
+        vf = np.array(e['vf'], dtype=float) + v_offset
+        im = np.array(e['im'], dtype=float) / im_divisor * 1000.0  # → mA
+        an, cat = _split_cv_sweeps(vf, im)
+        anodic.append(an)
+        cathodic.append(cat)
+
+    def _branch(result) -> dict | None:
+        if result is None:
+            return None
+        v_grid, b, r2 = result
+        return {
+            'voltages': v_grid.tolist(),
+            'b':  [None if np.isnan(x) else float(x) for x in b],
+            'r2': [None if np.isnan(x) else float(x) for x in r2],
+        }
+
+    return {
+        'anodic':   _branch(_bvalue_regression(anodic,   log_rates, n_points)),
+        'cathodic': _branch(_bvalue_regression(cathodic, log_rates, n_points)),
     }
 
 

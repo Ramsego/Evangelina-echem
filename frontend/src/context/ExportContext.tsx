@@ -9,6 +9,7 @@ export interface CollectResult {
   summary?: PanelSummary;    // LLM-ready analysis summary
   plotData: Plotly.Data[];
   layout:   Partial<Plotly.Layout>;
+  extraPlots?: { name: string; data: Plotly.Data[]; layout: Partial<Plotly.Layout> }[];
 }
 
 /** A pre-built table = the exact plotted columns, handed to the backend verbatim. */

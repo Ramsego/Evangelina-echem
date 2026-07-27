@@ -262,7 +262,7 @@ export default function CVAnalysisPanel({ file, files, getCsvRef, getPlotRef, ge
         { title: "Instrument metadata", lines: metaLines(file.metadata) },
         { title: "Analysis settings", lines: settings },
         { title: "Computed values", lines: values },
-        { title: "Scan-rate (b-value) analysis", lines: srLines.length ? srLines : ["(not run — open the Scan Rate Analysis section and click Run analysis)"] },
+        { title: "Scan-rate (power-law / Trasatti) analysis", lines: srLines.length ? srLines : ["(not run — open the Scan Rate Analysis section and click Run analysis)"] },
         { title: "Dunn analysis", lines: dunnLines.length ? dunnLines : ["(not run — open the Dunn Analysis section and click Run analysis)"] },
         { title: "Warnings", lines: warnings.length ? warnings : ["(none)"] },
         { title: "Definitions", lines: definitions },

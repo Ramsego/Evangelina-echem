@@ -14,7 +14,7 @@ from gamry_plotter.analysis import (
     eis_relaxation_time,
     tafel_analysis,
 )
-from gamry_plotter.data import compute_cv_area, compute_dunn_analysis, find_cv_peaks
+from gamry_plotter.data import compute_bvalue_profile, compute_cv_area, compute_dunn_analysis, find_cv_peaks
 from limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -147,6 +147,22 @@ class DunnRequest(BaseModel):
         return v
 
 
+class BValueProfileRequest(BaseModel):
+    entries:    list[DunnEntry]
+    v_offset:   float = 0.0
+    im_divisor: float = 1.0
+    n_points:   int   = Field(200, ge=1, le=2_000)
+
+    @field_validator("entries")
+    @classmethod
+    def _check_entries(cls, v: list[DunnEntry]) -> list[DunnEntry]:
+        if len(v) < 2:
+            raise ValueError("at least 2 entries required")
+        if len(v) > _MAX_CURVES:
+            raise ValueError(f"too many entries (max {_MAX_CURVES})")
+        return v
+
+
 # ── Response models ───────────────────────────────────────────────────────────
 
 class PeakSet(BaseModel):
@@ -234,6 +250,16 @@ class DunnResult(BaseModel):
     i_diff:        list[float]
 
 
+class BValueBranch(BaseModel):
+    voltages: list[float]
+    b:        list[float | None]
+    r2:       list[float | None]
+
+class BValueProfileResult(BaseModel):
+    anodic:   BValueBranch | None
+    cathodic: BValueBranch | None
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _curve_df(c: Curve, v_offset: float = 0.0, im_divisor: float = 1.0) -> pd.DataFrame:
@@ -291,6 +317,22 @@ def analyze_dunn(request: Request, req: DunnRequest) -> DunnResult:
         n_points=req.n_points,
     )
     return DunnResult(**result)
+
+
+@router.post("/bvalue-profile", response_model=BValueProfileResult)
+@limiter.limit("30/minute")
+def analyze_bvalue_profile(request: Request, req: BValueProfileRequest) -> BValueProfileResult:
+    entries = [
+        {"vf": e.vf, "im": e.im, "scan_rate_mv": e.scan_rate_mv}
+        for e in req.entries
+    ]
+    result = compute_bvalue_profile(
+        entries,
+        v_offset=req.v_offset,
+        im_divisor=req.im_divisor,
+        n_points=req.n_points,
+    )
+    return BValueProfileResult(**result)
 
 
 # ── LSV Tafel ─────────────────────────────────────────────────────────────────

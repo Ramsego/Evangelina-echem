@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
-import { ParsedFile, CVResponse } from "../../types";
-import { analyzeCV } from "../../api/client";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { ParsedFile, CVResponse, BValueProfileResponse } from "../../types";
+import { analyzeCV, analyzeBValueProfile } from "../../api/client";
 import { parseScanRateMvs, LAYOUT_BASE } from "../../utils/plotUtils";
 import { useFileLabels } from "../../context/FileLabelContext";
 import { useStyle } from "../../context/StyleContext";
-import { applyStyleToData, applyStyleToLayout } from "../../utils/applyStyle";
+import { applyStyleToData, applyStyleToLayout, StyledTrace } from "../../utils/applyStyle";
 import { PALETTES } from "../../styles/styleTypes";
 import ClampedPlot from "../ClampedPlot";
 
@@ -19,9 +19,6 @@ interface FitResult {
   intercept: number;
   r2:        number;
 }
-
-// CSV explanation for scan rate section (used in buildSrCsv)
-const EXPLAIN_SR_CSV = `b-value: log(ip) = b·log(ν) + log(a). b ≈ 1 → surface-controlled; b ≈ 0.5 → semi-infinite diffusion. All detected peaks included as separate data points.`;
 
 function linearFit(x: number[], y: number[]): FitResult | null {
   const n = x.length;
@@ -41,12 +38,6 @@ function linearFit(x: number[], y: number[]): FitResult | null {
   return { slope, intercept, r2 };
 }
 
-function interpretB(b: number): string {
-  if (b >= 0.85) return "surface-controlled";
-  if (b <= 0.6)  return "diffusion-controlled";
-  return "mixed";
-}
-
 function fmt(v: number | null | undefined, dp = 3): string {
   return v != null && Number.isFinite(v) ? v.toFixed(dp) : "—";
 }
@@ -54,21 +45,6 @@ function fmt(v: number | null | undefined, dp = 3): string {
 const thCls = "px-2 py-1 text-left text-[10px] font-semibold text-panel-muted uppercase tracking-wider border-b border-panel-border whitespace-nowrap";
 const tdCls = "px-2 py-1 text-[11px] text-panel-text tabular-nums";
 const selectCls = "bg-panel-bg border border-panel-border rounded px-1 py-0.5 text-[10px] text-panel-text truncate max-w-[130px]";
-
-const EXPLAIN_SR: Record<string, string> = {
-  b:    "Slope of log(ip) vs. log(ν): b ≈ 1 means surface-controlled (capacitive or adsorption-limited); b ≈ 0.5 means semi-infinite diffusion (intercalation); values between indicate mixed control.",
-  r2:   "Coefficient of determination of the log(ip) vs. log(ν) linear fit. R² → 1 confirms a clean power-law relationship; lower values suggest noise, competing mechanisms, or too few data points.",
-  bSr:  "Analysis uses one selected cycle per file. All detected peaks at that scan rate are included as independent data points for the fit.",
-};
-
-function QBtn({ id, active, onToggle }: { id: string; active: boolean; onToggle: (id: string) => void }) {
-  return (
-    <button
-      onClick={e => { e.stopPropagation(); onToggle(id); }}
-      className={`ml-1 text-[9px] border rounded-full w-3.5 h-3.5 inline-flex items-center justify-center leading-none transition-colors cursor-pointer shrink-0 ${active ? "border-forest-400 text-forest-600 bg-panel-hl" : "border-panel-border text-panel-muted hover:text-forest-600 hover:border-forest-400"}`}
-    >?</button>
-  );
-}
 
 export interface SrPlotExport {
   data:   Plotly.Data[];
@@ -86,8 +62,6 @@ interface Props {
 export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRef, getSrSummaryRef }: Props) {
   const style = useStyle();
   const { getLabel } = useFileLabels();
-  const [bExplain, setBExplain] = useState<string | null>(null);
-  const toggleB = (id: string) => setBExplain(prev => prev === id ? null : id);
 
   const srFileMap = useMemo(
     () => Object.fromEntries(allCvFiles.map(f => [f.id, f])),
@@ -113,12 +87,36 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
         queryFn:  () => analyzeCV({
           curves:       [curve!],
           scan_rate_mv: sr ?? 10,
-          detect_peaks: true,
-          prominence:   0.05,
         }),
         enabled: srRunKey > 0 && !!curve && sr != null,
       };
     }),
+  });
+
+  const validProfileEntries = srEntries.filter(e => {
+    const f     = srFileMap[e.fileId];
+    const curve = f?.curves?.[e.cycleIndex - 1];
+    const sr    = f ? parseScanRateMvs(f.metadata?.SCANRATE) : null;
+    return !!curve && sr != null;
+  });
+
+  const bProfileBody = useMemo(() => {
+    if (srRunKey === 0 || validProfileEntries.length < 3) return null;
+    return {
+      entries: validProfileEntries.map(e => {
+        const f     = srFileMap[e.fileId];
+        const curve = f!.curves![e.cycleIndex - 1];
+        const sr    = parseScanRateMvs(f!.metadata?.SCANRATE)!;
+        return { vf: curve.vf, im: curve.im, scan_rate_mv: sr };
+      }),
+    };
+    // srRunKey intentional — gates re-computation to the entries present at "Run" time
+  }, [srRunKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { data: bProfileData, isLoading: bProfileLoading } = useQuery<BValueProfileResponse>({
+    queryKey: ["bvalue-profile", srRunKey],
+    queryFn:  () => analyzeBValueProfile(bProfileBody!),
+    enabled:  srRunKey > 0 && bProfileBody != null,
   });
 
   const duplicates = useMemo(() => {
@@ -136,16 +134,13 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
       .map(([sr, names]) => `${names.join(" & ")} share scan rate ${sr} mV/s`);
   }, [srEntries, srFileMap]);
 
-  const srLoading = srRunKey > 0 && srQueries.some(q => q.isLoading || q.isPending);
+  const srLoading = srRunKey > 0 && (srQueries.some(q => q.isLoading || q.isPending) || bProfileLoading);
   const srQueriesKey = srQueries.map(q => q.dataUpdatedAt).join(",");
 
   const bValueData = useMemo(() => {
     if (srRunKey === 0) return null;
     if (srQueries.some(q => q.isLoading || q.isPending)) return null;
 
-    type Pt = { sr: number; ip: number };
-    const oxPoints:  Pt[] = [];
-    const redPoints: Pt[] = [];
     const capPoints: { sr: number; capMf: number }[] = [];
 
     srEntries.forEach((entry, i) => {
@@ -154,39 +149,28 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
       const qData  = srQueries[i]?.data as CVResponse | undefined;
       if (!sr || !qData || sr <= 0) return;
 
-      (qData.peaks?.[0]?.oxidation?.currents ?? []).forEach((ip: number) => {
-        if (ip > 0) oxPoints.push({ sr, ip });
-      });
-      (qData.peaks?.[0]?.reduction?.currents ?? []).forEach((ip: number) => {
-        if (Math.abs(ip) > 0) redPoints.push({ sr, ip: Math.abs(ip) });
-      });
       const capMf = qData.capacitances_mf?.[0];
       if (capMf != null && capMf > 0) capPoints.push({ sr, capMf });
     });
 
-    const oxFit  = linearFit(oxPoints.map(p => Math.log10(p.sr)),  oxPoints.map(p => Math.log10(p.ip)));
-    const redFit = linearFit(redPoints.map(p => Math.log10(p.sr)), redPoints.map(p => Math.log10(p.ip)));
-    const cFit   = linearFit(capPoints.map(p => Math.sqrt(p.sr)),  capPoints.map(p => p.capMf));
+    const cFit = linearFit(capPoints.map(p => Math.sqrt(p.sr)), capPoints.map(p => p.capMf));
 
-    return { oxPoints, redPoints, capPoints, oxFit, redFit, cFit };
+    return { capPoints, cFit };
     // srQueries identity changes every render; srQueriesKey captures when results actually settle
   }, [srRunKey, srEntries, srFileMap, srQueriesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function buildSrCsv(): string {
     if (!bValueData) return "";
     const lines: string[] = [];
-    bValueData.oxPoints.forEach(p =>
-      lines.push(`Scan Rate Analysis,ip_ox,ν=${p.sr},${fmt(p.ip, 4)},mA,""`));
-    bValueData.redPoints.forEach(p =>
-      lines.push(`Scan Rate Analysis,ip_red,ν=${p.sr},${fmt(p.ip, 4)},mA,""`));
-    if (bValueData.oxFit)
-      lines.push(`Scan Rate Analysis,b (oxidation),—,${fmt(bValueData.oxFit.slope, 3)},—,"${EXPLAIN_SR_CSV.replace(/"/g, "'")}"`);
-    if (bValueData.redFit)
-      lines.push(`Scan Rate Analysis,b (reduction),—,${fmt(bValueData.redFit.slope, 3)},—,""`);
     bValueData.capPoints.forEach(p =>
       lines.push(`Scan Rate Analysis,C,ν=${p.sr},${fmt(p.capMf, 4)},mF,""`));
     if (bValueData.cFit)
-      lines.push(`Scan Rate Analysis,C vs √ν slope,—,${fmt(bValueData.cFit.slope, 4)},mF·s^0.5·mV^-0.5,""`);
+      lines.push(`Scan Rate Analysis,Trasatti slope (C vs √ν),—,${fmt(bValueData.cFit.slope, 4)},mF·s^0.5·mV^-0.5,""`);
+    for (const [branch, label] of [["anodic", "b(E) anodic"], ["cathodic", "b(E) cathodic"]] as const) {
+      const br = bProfileData?.[branch];
+      if (br) br.voltages.forEach((v, i) =>
+        lines.push(`Scan Rate Analysis,${label},E=${v.toFixed(4)},${fmt(br.b[i], 3)},—,""`));
+    }
     return lines.join("\n");
   }
 
@@ -195,32 +179,26 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
   function buildSrSummary(): string[] {
     if (!bValueData) return [];
     const lines: string[] = [];
-    if (bValueData.oxFit) {
-      lines.push(`b (oxidation): ${fmt(bValueData.oxFit.slope, 3)} (R² = ${fmt(bValueData.oxFit.r2, 3)}) [${EXPLAIN_SR_CSV}]`);
-      if (bValueData.oxPoints.length < 3) lines.push(`  warning: fit uses only ${bValueData.oxPoints.length} points — add more scan rates for a reliable fit`);
-    }
-    if (bValueData.redFit) {
-      lines.push(`b (reduction): ${fmt(bValueData.redFit.slope, 3)} (R² = ${fmt(bValueData.redFit.r2, 3)})`);
-      if (bValueData.redPoints.length < 3) lines.push(`  warning: fit uses only ${bValueData.redPoints.length} points — add more scan rates for a reliable fit`);
-    }
-    if (!bValueData.oxFit && !bValueData.redFit) {
-      lines.push("No peaks detected in selected files");
-    }
     if (bValueData.cFit) {
-      lines.push(`C vs √ν slope: ${fmt(bValueData.cFit.slope, 4)} mF·s^0.5·mV^-0.5 (R² = ${fmt(bValueData.cFit.r2, 3)})`);
+      lines.push(`Trasatti slope (C vs √ν): ${fmt(bValueData.cFit.slope, 4)} mF·s^0.5·mV^-0.5 (R² = ${fmt(bValueData.cFit.r2, 3)})`);
     }
 
-    if (bValueData.oxPoints.length > 0 || bValueData.redPoints.length > 0) {
-      lines.push("", "Peak currents by scan rate:");
-      const rates = Array.from(new Set([
-        ...bValueData.oxPoints.map(p => p.sr),
-        ...bValueData.redPoints.map(p => p.sr),
-      ])).sort((a, b) => a - b);
-      rates.forEach(sr => {
-        const oxIps  = bValueData.oxPoints.filter(p => p.sr === sr).map(p => fmt(p.ip, 4));
-        const redIps = bValueData.redPoints.filter(p => p.sr === sr).map(p => fmt(p.ip, 4));
-        lines.push(`  ν=${sr} mV/s: ip_ox=[${oxIps.join(", ")}] mA, ip_red=[${redIps.join(", ")}] mA`);
-      });
+    if (bProfileData && (bProfileData.anodic || bProfileData.cathodic)) {
+      lines.push(
+        "",
+        "Power-law (Lindström) b(E): log|i(V,ν)| = b(V)·log(ν) + log(a(V)), fit at every potential across the sweep, per branch. b ≈ 1 → surface-controlled; b ≈ 0.5 → semi-infinite diffusion. Full E,b table included in CSV export.",
+      );
+      for (const [branch, label] of [["anodic", "anodic"], ["cathodic", "cathodic"]] as const) {
+        const br = bProfileData[branch];
+        if (!br) continue;
+        const valid = br.voltages
+          .map((v, i) => ({ v, b: br.b[i] }))
+          .filter((p): p is { v: number; b: number } => p.b != null);
+        if (valid.length === 0) continue;
+        const minP = valid.reduce((a, c) => c.b < a.b ? c : a);
+        const maxP = valid.reduce((a, c) => c.b > a.b ? c : a);
+        lines.push(`  ${label}: most diffusion-controlled near E=${fmt(minP.v, 3)} V (b=${fmt(minP.b, 3)}); most surface-controlled near E=${fmt(maxP.v, 3)} V (b=${fmt(maxP.b, 3)})`);
+      }
     }
 
     if (bValueData.capPoints.length > 0) {
@@ -238,55 +216,9 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
   const srPlots = useMemo((): SrPlotExport[] => {
     if (!bValueData) return [];
     const palette = style.customPalette ?? PALETTES[style.colorScheme] ?? PALETTES["Forest"];
-    const c0 = palette[0] ?? "#52B788";
-    const c1 = palette[1] ?? "#F4A261";
-    const c2 = palette[2] ?? "#74C69D";
+    const c0 = palette[0] ?? "#74C69D";
+    const c1 = palette[1] ?? "#9d7bd8";
     const plots: SrPlotExport[] = [];
-
-    if (bValueData.oxPoints.length > 0 || bValueData.redPoints.length > 0) {
-      const allLogSr = [
-        ...bValueData.oxPoints.map(p => Math.log10(p.sr)),
-        ...bValueData.redPoints.map(p => Math.log10(p.sr)),
-      ];
-      const x0 = Math.min(...allLogSr) - 0.3;
-      const x1 = Math.max(...allLogSr) + 0.3;
-      const rawData1: Plotly.Data[] = [
-        ...(bValueData.oxPoints.length > 0 ? [{
-          x: bValueData.oxPoints.map(p => Math.log10(p.sr)),
-          y: bValueData.oxPoints.map(p => Math.log10(p.ip)),
-          mode: "markers" as const, type: "scatter" as const, name: "Oxidation",
-          marker: { color: c0, size: 7 },
-        }] : []),
-        ...(bValueData.redPoints.length > 0 ? [{
-          x: bValueData.redPoints.map(p => Math.log10(p.sr)),
-          y: bValueData.redPoints.map(p => Math.log10(p.ip)),
-          mode: "markers" as const, type: "scatter" as const, name: "Reduction",
-          marker: { color: c1, size: 7 },
-        }] : []),
-        ...(bValueData.oxFit ? [{
-          x: [x0, x1], y: [x0, x1].map(x => bValueData.oxFit!.slope * x + bValueData.oxFit!.intercept),
-          mode: "lines" as const, type: "scatter" as const,
-          name: `b_ox = ${bValueData.oxFit.slope.toFixed(2)} (R²=${bValueData.oxFit.r2.toFixed(2)})`,
-          line: { dash: "dash" as const, color: c0, width: 1.5 },
-        }] : []),
-        ...(bValueData.redFit ? [{
-          x: [x0, x1], y: [x0, x1].map(x => bValueData.redFit!.slope * x + bValueData.redFit!.intercept),
-          mode: "lines" as const, type: "scatter" as const,
-          name: `b_red = ${bValueData.redFit.slope.toFixed(2)} (R²=${bValueData.redFit.r2.toFixed(2)})`,
-          line: { dash: "dash" as const, color: c1, width: 1.5 },
-        }] : []),
-      ];
-      plots.push({
-        name:   "bvalue",
-        data:   applyStyleToData(rawData1, style),
-        layout: applyStyleToLayout({
-          ...LAYOUT_BASE, height: 240,
-          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: "log₁₀(ν / mV·s⁻¹)", font: { color: "#74C69D" } } },
-          yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "log₁₀(ip / mA)",     font: { color: "#74C69D" } } },
-          margin: { t: 20, r: 10, b: 48, l: 60 },
-        }, style),
-      });
-    }
 
     if (bValueData.capPoints.length >= 2) {
       const sqrtSrs = bValueData.capPoints.map(p => Math.sqrt(p.sr));
@@ -296,18 +228,18 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
         {
           x: sqrtSrs, y: bValueData.capPoints.map(p => p.capMf),
           mode: "markers" as const, type: "scatter" as const, name: "C (mF)",
-          marker: { color: c2, size: 7 },
+          marker: { color: c0, size: 7 },
         },
         ...(bValueData.cFit ? [{
           x: [xMin2, xMax2],
           y: [xMin2, xMax2].map(x => bValueData.cFit!.slope * x + bValueData.cFit!.intercept),
           mode: "lines" as const, type: "scatter" as const,
           name: `slope = ${bValueData.cFit.slope.toFixed(3)} (R²=${bValueData.cFit.r2.toFixed(2)})`,
-          line: { dash: "dash" as const, color: c2, width: 1.5 },
+          line: { dash: "dash" as const, color: c0, width: 1.5 },
         }] : []),
       ];
       plots.push({
-        name:   "cvssqrtnu",
+        name:   "trasatti",
         data:   applyStyleToData(rawData2, style),
         layout: applyStyleToLayout({
           ...LAYOUT_BASE, height: 220,
@@ -318,8 +250,50 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
       });
     }
 
+    const branches = [
+      bProfileData?.anodic   ? { br: bProfileData.anodic,   name: "b(E) anodic" }   : null,
+      bProfileData?.cathodic ? { br: bProfileData.cathodic, name: "b(E) cathodic" } : null,
+    ].filter(x => x != null);
+
+    if (branches.length > 0) {
+      const allVs = branches.flatMap(x => x!.br.voltages);
+      const vLo  = Math.min(...allVs);
+      const vHi  = Math.max(...allVs);
+      const refLineColor = "rgba(160,160,160,0.7)";
+      const rawData3: StyledTrace[] = [
+        ...branches.map((x, k) => ({
+          x: x!.br.voltages, y: x!.br.b,
+          mode: "lines" as const, type: "scatter" as const, name: x!.name,
+          line: { color: k === 0 ? c1 : (palette[2] ?? "#e07b91"), width: 2 },
+          connectgaps: false,
+        })),
+        {
+          x: [vLo, vHi], y: [1, 1],
+          mode: "lines" as const, type: "scatter" as const, name: "b = 1 (surface-controlled)",
+          line: { color: refLineColor, width: 1, dash: "dot" as const }, fixedColor: refLineColor,
+          hoverinfo: "skip" as const,
+        },
+        {
+          x: [vLo, vHi], y: [0.5, 0.5],
+          mode: "lines" as const, type: "scatter" as const, name: "b = 0.5 (diffusion-controlled)",
+          line: { color: refLineColor, width: 1, dash: "dot" as const }, fixedColor: refLineColor,
+          hoverinfo: "skip" as const,
+        },
+      ];
+      plots.push({
+        name:   "powerlaw",
+        data:   applyStyleToData(rawData3, style),
+        layout: applyStyleToLayout({
+          ...LAYOUT_BASE, height: 240,
+          xaxis: { ...LAYOUT_BASE.xaxis, title: { text: "E (V)", font: { color: "#74C69D" } } },
+          yaxis: { ...LAYOUT_BASE.yaxis, title: { text: "b",     font: { color: "#74C69D" } }, range: [0, 1.2] },
+          margin: { t: 20, r: 10, b: 48, l: 60 },
+        }, style),
+      });
+    }
+
     return plots;
-  }, [bValueData, style]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bValueData, bProfileData, style]); // eslint-disable-line react-hooks/exhaustive-deps
 
   getSrPlotsRef.current = () => srPlots;
 
@@ -433,113 +407,31 @@ export default function ScanRateAnalysis({ allCvFiles, getSrCsvRef, getSrPlotsRe
       {bValueData && (
         <div className="flex flex-col gap-3 pt-1">
 
-          {/* b-value plot: log(ip) vs log(ν) */}
+          {/* Trasatti plot: C vs √ν */}
           {srPlots[0] && (
             <ClampedPlot data={srPlots[0].data} layout={srPlots[0].layout}
-              resetKey={`scan-rate-b-${srRunKey}`}
-              config={{ responsive: true, displayModeBar: "hover", displaylogo: false }}
-              style={{ width: "100%", height: "240px" }} useResizeHandler legendStyle={style} />
-          )}
-
-          {/* C vs √ν plot */}
-          {srPlots[1] && (
-            <ClampedPlot data={srPlots[1].data} layout={srPlots[1].layout}
               resetKey={`scan-rate-cap-${srRunKey}`}
               config={{ responsive: true, displayModeBar: "hover", displaylogo: false }}
               style={{ width: "100%", height: "220px" }} useResizeHandler legendStyle={style} />
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-panel-header">
-                  <th className={thCls}>Series</th>
-                  <th className={thCls}>
-                    b-value <QBtn id="b" active={bExplain === "b"} onToggle={toggleB} />
-                  </th>
-                  <th className={thCls}>
-                    R² <QBtn id="r2" active={bExplain === "r2"} onToggle={toggleB} />
-                  </th>
-                  <th className={thCls}>Interpretation</th>
-                </tr>
-                {bExplain && (
-                  <tr className="bg-panel-hl">
-                    <td colSpan={4} className="px-3 py-2 text-[11px] text-panel-muted leading-relaxed border-b border-panel-hlbdr">
-                      {EXPLAIN_SR[bExplain!]}
-                    </td>
-                  </tr>
-                )}
-              </thead>
-              <tbody>
-                {bValueData.oxFit && (
-                  <tr className="bg-panel-bg">
-                    <td className={tdCls + " font-medium text-panel-muted"}>Oxidation</td>
-                    <td className={tdCls + " font-semibold"}>{fmt(bValueData.oxFit.slope, 3)}</td>
-                    <td className={tdCls}>{fmt(bValueData.oxFit.r2, 3)}</td>
-                    <td className={tdCls + " text-panel-muted"}>{interpretB(bValueData.oxFit.slope)}</td>
-                  </tr>
-                )}
-                {bValueData.redFit && (
-                  <tr className="bg-panel-bgalt">
-                    <td className={tdCls + " font-medium text-panel-muted"}>Reduction</td>
-                    <td className={tdCls + " font-semibold"}>{fmt(bValueData.redFit.slope, 3)}</td>
-                    <td className={tdCls}>{fmt(bValueData.redFit.r2, 3)}</td>
-                    <td className={tdCls + " text-panel-muted"}>{interpretB(bValueData.redFit.slope)}</td>
-                  </tr>
-                )}
-                {!bValueData.oxFit && !bValueData.redFit && (
-                  <tr><td colSpan={4} className={tdCls + " text-panel-muted italic"}>No peaks detected in selected files</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {((bValueData.oxFit && bValueData.oxPoints.length < 3) || (bValueData.redFit && bValueData.redPoints.length < 3)) && (
-            <p className="text-[11px] text-amber-500 bg-amber-400/10 border border-amber-400/40 rounded px-2 py-1.5">
-              b-value fit uses only {Math.min(
-                ...[bValueData.oxFit ? bValueData.oxPoints.length : Infinity, bValueData.redFit ? bValueData.redPoints.length : Infinity]
-              )} points — add more scan rates for a reliable fit.
-            </p>
+          {/* Power-law (Lindström) plot: b(E) resolved across the whole sweep */}
+          {bProfileLoading && <p className="text-[11px] text-panel-muted">Computing b(E) profile…</p>}
+          {srPlots[1] && (
+            <ClampedPlot data={srPlots[1].data} layout={srPlots[1].layout}
+              resetKey={`scan-rate-powerlaw-${srRunKey}`}
+              config={{ responsive: true, displayModeBar: "hover", displaylogo: false }}
+              style={{ width: "100%", height: "240px" }} useResizeHandler legendStyle={style} />
           )}
-
-          {(bValueData.oxPoints.length > 0 || bValueData.redPoints.length > 0) && (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead><tr className="bg-panel-header">
-                  <th className={thCls}>ν (mV/s)</th>
-                  <th className={thCls}>log ν</th>
-                  <th className={thCls}>ip_ox (mA)</th>
-                  <th className={thCls}>log ip_ox</th>
-                  <th className={thCls}>ip_red (mA)</th>
-                  <th className={thCls}>log |ip_red|</th>
-                </tr></thead>
-                <tbody>
-                  {Array.from(new Set([
-                    ...bValueData.oxPoints.map(p => p.sr),
-                    ...bValueData.redPoints.map(p => p.sr),
-                  ])).sort((a, b) => a - b).map((sr, i) => {
-                    const oxPts   = bValueData.oxPoints.filter(p => p.sr === sr);
-                    const redPts  = bValueData.redPoints.filter(p => p.sr === sr);
-                    const maxRows = Math.max(oxPts.length, redPts.length, 1);
-                    return Array.from({ length: maxRows }, (_, j) => (
-                      <tr key={`${sr}-${j}`} className={i % 2 === 0 ? "bg-panel-bg" : "bg-panel-bgalt"}>
-                        <td className={tdCls}>{j === 0 ? sr : ""}</td>
-                        <td className={tdCls}>{j === 0 ? Math.log10(sr).toFixed(3) : ""}</td>
-                        <td className={tdCls}>{fmt(oxPts[j]?.ip, 4)}</td>
-                        <td className={tdCls}>{oxPts[j] ? Math.log10(oxPts[j].ip).toFixed(4) : "—"}</td>
-                        <td className={tdCls}>{fmt(redPts[j]?.ip, 4)}</td>
-                        <td className={tdCls}>{redPts[j] ? Math.log10(redPts[j].ip).toFixed(4) : "—"}</td>
-                      </tr>
-                    ));
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {srRunKey > 0 && !bProfileLoading && validProfileEntries.length < 3 && (
+            <p className="text-[11px] text-panel-muted italic">
+              Power-law (Lindström) b(E) needs at least 3 scan-rate entries with loaded curve data.
+            </p>
           )}
 
           {bValueData.capPoints.length >= 2 && (
             <div className="overflow-x-auto">
-              <p className="text-[10px] font-semibold text-panel-muted uppercase tracking-wider px-1 mb-1">C vs √ν</p>
+              <p className="text-[10px] font-semibold text-panel-muted uppercase tracking-wider px-1 mb-1">Trasatti</p>
               <table className="w-full border-collapse text-left">
                 <thead><tr className="bg-panel-header">
                   <th className={thCls}>ν (mV/s)</th>
